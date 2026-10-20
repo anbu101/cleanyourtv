@@ -27,6 +27,8 @@ public class ClockDream extends DreamService {
     private GradientDrawable glow;
     private int colorIndex;
     private int glowColor;
+    private WeatherView dreamWeather;
+    private WeatherFetcher dreamWeatherFetcher;
 
     private final Runnable tick = new Runnable() {
         @Override
@@ -46,6 +48,7 @@ public class ClockDream extends DreamService {
         setContentView(R.layout.dream_clock);
 
         content = findViewById(R.id.dreamContent);
+        dreamWeather = findViewById(R.id.dreamWeather);
         View ambient = findViewById(R.id.dreamAmbient);
         glow = new GradientDrawable();
         glow.setGradientType(GradientDrawable.RADIAL_GRADIENT);
@@ -65,10 +68,21 @@ public class ClockDream extends DreamService {
             content.animate().alpha(1f).setDuration(1200).start();
         });
         handler.postDelayed(tick, MOVE_MS);
+        // Show weather backdrop if enabled in launcher settings.
+        Config cfg = Config.load(this);
+        if (cfg.weatherBg && dreamWeather != null) {
+            dreamWeatherFetcher = new WeatherFetcher((scene, label) -> dreamWeather.setScene(scene));
+            dreamWeatherFetcher.start();
+        }
     }
 
     @Override
     public void onDreamingStopped() {
+        if (dreamWeatherFetcher != null) {
+            dreamWeatherFetcher.stop();
+            dreamWeatherFetcher = null;
+        }
+        if (dreamWeather != null) dreamWeather.setScene(WeatherView.Scene.NONE);
         handler.removeCallbacks(tick);
         super.onDreamingStopped();
     }

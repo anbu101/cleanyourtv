@@ -5,21 +5,37 @@ import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.net.Uri;
 import android.os.Bundle;
+import android.os.Build;
 import android.provider.Settings;
+import android.text.InputFilter;
+import android.text.InputType;
+import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
 /** Remote-friendly settings owned by the launcher; system settings stay one row away. */
 public final class LauncherSettingsActivity extends Activity {
+    private static final int DOCK_REORDER_REQUEST = 1;
     private SharedPreferences choices;
     private final TextView[] columnChoices = new TextView[4];
     private TextView animationsChoice;
     private TextView advancedChoice;
     private TextView followThemeChoice;
+    private TextView weatherBgChoice;
+    private TextView tickerChoice;
+    private TextView kidsModeChoice;
+    private TextView overlayClockChoice;
     private int columns;
     private boolean animations;
     private boolean advancedEffects;
+    private boolean weatherBg;
+    private int tickerMode;
+    private boolean kidsMode;
+    private boolean overlayClockEnabled;
+    /** True when we navigated to the overlay permission screen; check on resume. */
+    private boolean awaitingOverlayPermission = false;
 
     @Override
     protected void onCreate(Bundle state) {
@@ -30,6 +46,10 @@ public final class LauncherSettingsActivity extends Activity {
         columns = config.columns;
         animations = config.animations;
         advancedEffects = config.animations && config.advancedEffects;
+        weatherBg = config.weatherBg;
+        tickerMode = config.tickerMode;
+        kidsMode = config.kidsMode;
+        overlayClockEnabled = config.overlayClockEnabled;
 
         int[] ids = {R.id.columns4, R.id.columns5, R.id.columns6, R.id.columns7};
         for (int i = 0; i < ids.length; i++) {
@@ -65,6 +85,77 @@ public final class LauncherSettingsActivity extends Activity {
                         .show();
             }
         });
+        findViewById(R.id.reorderDockChoice).setOnClickListener(v ->
+                startActivityForResult(new Intent(this, DockReorderActivity.class), DOCK_REORDER_REQUEST));
+
+        weatherBgChoice = findViewById(R.id.weatherBgChoice);
+        weatherBgChoice.setOnClickListener(v -> {
+            weatherBg = !weatherBg;
+            choices.edit().putBoolean("weather_bg", weatherBg).apply();
+            setResult(RESULT_OK);
+            refresh();
+        });
+
+        tickerChoice = findViewById(R.id.tickerChoice);
+        tickerChoice.setOnClickListener(v -> {
+            tickerMode = (tickerMode + 1) % 4;   // Off → News → Cricket → News+Cricket → Off
+            choices.edit().putInt("ticker_mode", tickerMode).apply();
+            setResult(RESULT_OK);
+            refresh();
+        });
+
+        kidsModeChoice = findViewById(R.id.kidsModeChoice);
+        kidsModeChoice.setOnClickListener(v -> {
+            if (!kidsMode) {
+                // Enabling: require a PIN to be set (or re-entered if already set)
+                String storedPin = choices.getString("kids_pin", "");
+                if (storedPin.isEmpty()) {
+                    showPinDialog(getString(R.string.kids_mode_set_pin), pin -> {
+                        choices.edit().putString("kids_pin", pin).putBoolean("kids_mode", true).apply();
+                        kidsMode = true;
+                        setResult(RESULT_OK);
+                        refresh();
+                    });
+                } else {
+                    choices.edit().putBoolean("kids_mode", true).apply();
+                    kidsMode = true;
+                    setResult(RESULT_OK);
+                    refresh();
+                }
+            } else {
+                // Disabling: require PIN
+                showPinDialog(getString(R.string.kids_mode_enter_pin), pin -> {
+                    String storedPin = choices.getString("kids_pin", "");
+                    if (pin.equals(storedPin)) {
+                        choices.edit().putBoolean("kids_mode", false).apply();
+                        kidsMode = false;
+                        setResult(RESULT_OK);
+                        refresh();
+                    } else {
+                        Toast.makeText(this, R.string.kids_mode_wrong_pin, Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
+        });
+
+        overlayClockChoice = findViewById(R.id.overlayClockChoice);
+        overlayClockChoice.setOnClickListener(v -> {
+            if (!overlayClockEnabled) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(this)) {
+                    Toast.makeText(this, R.string.overlay_clock_permission, Toast.LENGTH_LONG).show();
+                    awaitingOverlayPermission = true;
+                    try {
+                        startActivity(new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                Uri.parse("package:" + getPackageName())));
+                    } catch (ActivityNotFoundException ignored) { }
+                } else {
+                    setOverlayClock(true);
+                }
+            } else {
+                setOverlayClock(false);
+            }
+        });
+
         followThemeChoice = findViewById(R.id.followThemeChoice);
         followThemeChoice.setOnClickListener(v -> {
             if (!hasOnTvChoices()) return;
@@ -103,12 +194,68 @@ public final class LauncherSettingsActivity extends Activity {
                 getString(advancedEffects ? R.string.on : R.string.off)));
         advancedChoice.setEnabled(animations);
         advancedChoice.setAlpha(animations ? 1f : 0.5f);
+        weatherBgChoice.setText(getString(R.string.weather_bg_state,
+                getString(weatherBg ? R.string.on : R.string.off)));
+        int[] tickerLabels = {R.string.ticker_mode_off, R.string.ticker_mode_news,
+                R.string.ticker_mode_cricket, R.string.ticker_mode_both};
+        tickerChoice.setText(getString(R.string.ticker_state, getString(tickerLabels[tickerMode])));
+        kidsModeChoice.setText(getString(R.string.kids_mode_state,
+                getString(kidsMode ? R.string.on : R.string.off)));
+        overlayClockChoice.setText(getString(R.string.overlay_clock_state,
+                getString(overlayClockEnabled ? R.string.on : R.string.off)));
         followThemeChoice.setSelected(!hasOnTvChoices());
     }
 
     private boolean hasOnTvChoices() {
         return choices.contains("columns") || choices.contains("animations")
                 || choices.contains("advanced_effects");
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (awaitingOverlayPermission) {
+            awaitingOverlayPermission = false;
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this)) {
+                setOverlayClock(true);
+            }
+        }
+    }
+
+    private void setOverlayClock(boolean enabled) {
+        overlayClockEnabled = enabled;
+        choices.edit().putBoolean("overlay_clock", enabled).apply();
+        Intent svc = new Intent(this, OverlayClockService.class);
+        if (enabled) startService(svc); else stopService(svc);
+        setResult(RESULT_OK);
+        refresh();
+    }
+
+    /** Shows a PIN entry dialog; calls back with the entered PIN string on confirm. */
+    private void showPinDialog(String title, java.util.function.Consumer<String> onConfirm) {
+        EditText et = new EditText(this);
+        et.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_VARIATION_PASSWORD);
+        et.setFilters(new InputFilter[]{new InputFilter.LengthFilter(4)});
+        et.setHint("0000");
+        new AlertDialog.Builder(this)
+                .setTitle(title)
+                .setView(et)
+                .setPositiveButton(android.R.string.ok, (d, w) -> {
+                    String pin = et.getText().toString().trim();
+                    if (pin.length() < 4) {
+                        Toast.makeText(this, R.string.kids_mode_pin_short, Toast.LENGTH_SHORT).show();
+                    } else {
+                        onConfirm.accept(pin);
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    @Override
+    protected void onActivityResult(int req, int result, Intent data) {
+        super.onActivityResult(req, result, data);
+        if (result == RESULT_OK) { setResult(RESULT_OK); finish(); }
     }
 
     private void open(Intent intent) {

@@ -9,88 +9,190 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:paddingStart="72dp"
-        android:paddingEnd="72dp"
-        android:paddingTop="38dp"
-        android:paddingBottom="38dp">
+        android:paddingStart="64dp"
+        android:paddingEnd="64dp"
+        android:paddingTop="44dp"
+        android:paddingBottom="48dp">
 
+        <!-- ── Page header ── -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="@string/launcher_settings"
             android:textColor="#FFFFFFFF"
-            android:textSize="34sp" />
+            android:textSize="34sp"
+            android:fontFamily="@font/outfit_medium" />
 
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="28dp"
-            android:text="@string/columns_label"
-            android:textColor="#FFFFFFFF"
-            android:textSize="20sp" />
+            android:layout_marginTop="4dp"
+            android:text="@string/settings_subtitle"
+            android:textColor="#FF7A8C99"
+            android:textSize="14sp"
+            android:fontFamily="@font/outfit_light" />
 
+        <!-- ════════════════════════════════════════
+             DISPLAY
+             ════════════════════════════════════════ -->
+        <TextView
+            style="@style/SettingsSectionHeader"
+            android:text="@string/settings_section_display" />
+
+        <TextView
+            android:id="@+id/weatherBgChoice"
+            style="@style/SettingsRow"
+            android:layout_marginTop="8dp" />
+
+        <TextView
+            style="@style/SettingsHint"
+            android:text="@string/weather_bg_hint" />
+
+        <TextView
+            android:id="@+id/tickerChoice"
+            style="@style/SettingsRow"
+            android:layout_marginTop="8dp" />
+
+        <TextView
+            style="@style/SettingsHint"
+            android:text="@string/ticker_hint" />
+
+        <!-- ════════════════════════════════════════
+             LAYOUT
+             ════════════════════════════════════════ -->
+        <TextView
+            style="@style/SettingsSectionHeader"
+            android:text="@string/settings_section_layout" />
+
+        <!-- Columns selector card -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:orientation="horizontal">
+            android:layout_marginTop="8dp"
+            android:background="@drawable/settings_section_card"
+            android:paddingStart="18dp"
+            android:paddingEnd="18dp"
+            android:paddingTop="14dp"
+            android:paddingBottom="14dp"
+            android:orientation="vertical">
 
-            <TextView android:id="@+id/columns4" style="@style/SettingsColumnChoice" android:text="4" />
-            <TextView android:id="@+id/columns5" style="@style/SettingsColumnChoice" android:text="5" />
-            <TextView android:id="@+id/columns6" style="@style/SettingsColumnChoice" android:text="6" />
-            <TextView android:id="@+id/columns7" style="@style/SettingsColumnChoice" android:text="7" />
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/columns_label"
+                android:textColor="#FFACB8C1"
+                android:textSize="12sp"
+                android:fontFamily="@font/outfit_medium"
+                android:letterSpacing="0.06" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:orientation="horizontal">
+
+                <TextView android:id="@+id/columns4" style="@style/SettingsColumnChoice" android:text="4" />
+                <TextView android:id="@+id/columns5" style="@style/SettingsColumnChoice" android:text="5" />
+                <TextView android:id="@+id/columns6" style="@style/SettingsColumnChoice" android:text="6" />
+                <TextView android:id="@+id/columns7" style="@style/SettingsColumnChoice" android:text="7" android:layout_marginEnd="0dp" />
+            </LinearLayout>
         </LinearLayout>
 
         <TextView
             android:id="@+id/animationsChoice"
             style="@style/SettingsRow"
-            android:layout_marginTop="28dp" />
+            android:layout_marginTop="8dp" />
 
         <TextView
             android:id="@+id/advancedChoice"
             style="@style/SettingsRow"
-            android:layout_marginTop="10dp" />
+            android:layout_marginTop="8dp" />
 
         <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="@string/advanced_effects_warning"
-            android:textColor="#FFACB8C1"
-            android:textSize="14sp" />
+            style="@style/SettingsHint"
+            android:text="@string/advanced_effects_warning" />
 
         <TextView
             android:id="@+id/followThemeChoice"
             style="@style/SettingsRow"
-            android:layout_marginTop="18dp"
+            android:layout_marginTop="8dp"
             android:text="@string/follow_theme" />
 
         <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="7dp"
-            android:text="@string/follow_theme_hint"
-            android:textColor="#FFACB8C1"
-            android:textSize="14sp" />
+            style="@style/SettingsHint"
+            android:text="@string/follow_theme_hint" />
+
+        <!-- ════════════════════════════════════════
+             DOCK
+             ════════════════════════════════════════ -->
+        <TextView
+            style="@style/SettingsSectionHeader"
+            android:text="@string/settings_section_dock" />
+
+        <TextView
+            android:id="@+id/reorderDockChoice"
+            style="@style/SettingsRow"
+            android:layout_marginTop="8dp"
+            android:text="@string/reorder_dock" />
+
+        <TextView
+            style="@style/SettingsHint"
+            android:text="@string/reorder_dock_hint_settings" />
+
+        <!-- ════════════════════════════════════════
+             PARENTAL
+             ════════════════════════════════════════ -->
+        <TextView
+            style="@style/SettingsSectionHeader"
+            android:text="@string/settings_section_parental" />
+
+        <TextView
+            android:id="@+id/kidsModeChoice"
+            style="@style/SettingsRow"
+            android:layout_marginTop="8dp" />
+
+        <TextView
+            style="@style/SettingsHint"
+            android:text="@string/kids_mode_hint" />
+
+        <!-- ════════════════════════════════════════
+             EXTRAS
+             ════════════════════════════════════════ -->
+        <TextView
+            style="@style/SettingsSectionHeader"
+            android:text="@string/settings_section_extras" />
+
+        <TextView
+            android:id="@+id/overlayClockChoice"
+            style="@style/SettingsRow"
+            android:layout_marginTop="8dp" />
+
+        <TextView
+            style="@style/SettingsHint"
+            android:text="@string/overlay_clock_hint" />
+
+        <!-- ════════════════════════════════════════
+             SYSTEM
+             ════════════════════════════════════════ -->
+        <TextView
+            style="@style/SettingsSectionHeader"
+            android:text="@string/settings_section_system" />
 
         <TextView
             android:id="@+id/defaultHomeChoice"
             style="@style/SettingsRow"
-            android:layout_marginTop="28dp"
+            android:layout_marginTop="8dp"
             android:text="@string/home_settings" />
 
         <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="7dp"
-            android:text="@string/home_settings_help"
-            android:textColor="#FFACB8C1"
-            android:textSize="14sp" />
+            style="@style/SettingsHint"
+            android:text="@string/home_settings_help" />
 
         <TextView
             android:id="@+id/tvSettingsChoice"
             style="@style/SettingsRow"
-            android:layout_marginTop="18dp"
+            android:layout_marginTop="8dp"
             android:text="@string/tv_settings" />
+
     </LinearLayout>
 </ScrollView>

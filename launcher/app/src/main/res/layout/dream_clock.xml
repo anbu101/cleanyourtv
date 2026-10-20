@@ -5,6 +5,14 @@
     android:layout_height="match_parent"
     android:background="#FF000000">
 
+    <!-- Weather backdrop in screensaver; GONE when weather background is off. -->
+    <com.gathin.tvhome.WeatherView
+        android:id="@+id/dreamWeather"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone"
+        android:importantForAccessibility="no" />
+
     <View
         android:id="@+id/dreamAmbient"
         android:layout_width="match_parent"

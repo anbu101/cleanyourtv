@@ -10,6 +10,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
@@ -97,13 +98,17 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private boolean heroShown;
     private boolean animations;
     private boolean advancedEffects;
-    private TextView greeting;
     private View btnInputs;
     private TextView btnWifi;
     private TextView shamsiDate;
     private boolean shamsi;
     /** Optional time-of-day backdrop (config.xml, sky_intensity); 0 keeps it hidden. */
     private SkyView sky;
+    private WeatherView weatherView;
+    private WeatherFetcher weatherFetcher;
+    private TickerView tickerView;
+    private TickerFetcher tickerFetcher;
+    private boolean kidsMode;
     private String vpnApp;
     private SpringAnimation springX, springY;
     private float glassTargetX, glassTargetY;
@@ -213,13 +218,30 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (cfg.wallpaper != null) showWallpaper(cfg.wallpaper);
         sky = findViewById(R.id.sky);
         sky.setIntensity(cfg.skyIntensity);
+        kidsMode = cfg.kidsMode;
+
+        weatherView = findViewById(R.id.weather);
+        TextView weatherBadge = findViewById(R.id.weatherBadge);
+        if (cfg.weatherBg) {
+            weatherFetcher = new WeatherFetcher((scene, label) -> {
+                weatherView.setScene(scene);
+                if (weatherBadge != null) {
+                    if (label != null && !label.isEmpty()) {
+                        weatherBadge.setText(label);
+                        weatherBadge.setVisibility(View.VISIBLE);
+                    } else {
+                        weatherBadge.setVisibility(View.GONE);
+                    }
+                }
+            });
+            weatherFetcher.start();
+        }
         glass = findViewById(R.id.glass);
         ambient = findViewById(R.id.ambient);
         // The glow is one bitmap, so its alpha can be applied while drawing it. Otherwise every frame of
         // a fade renders it into a full-screen offscreen buffer first.
         ambient.forceHasOverlappingRendering(false);
         heroName = findViewById(R.id.heroName);
-        greeting = findViewById(R.id.greeting);
         btnWifi = findViewById(R.id.btnWifi);
         shamsiDate = findViewById(R.id.shamsiDate);
         shamsi = cfg.shamsiDate;
@@ -232,6 +254,23 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         vpnApp = cfg.vpnApp;
         moduleCards = cfg.moduleCards;
         hiddenApps = new HashSet<>(cfg.hiddenApps);
+
+        // Ticker
+        tickerView = findViewById(R.id.ticker);
+        if (cfg.tickerMode != TickerFetcher.MODE_OFF) {
+            tickerFetcher = new TickerFetcher(headline -> {
+                tickerView.setText(headline);
+                tickerView.setOnCycleComplete(() -> tickerFetcher.next());
+            });
+            tickerFetcher.start(cfg.tickerMode);
+        }
+
+        // Overlay clock — start service if enabled and permission granted
+        if (cfg.overlayClockEnabled && !OverlayClockService.running) {
+            boolean canDraw = Build.VERSION.SDK_INT < Build.VERSION_CODES.M
+                    || Settings.canDrawOverlays(this);
+            if (canDraw) startService(new Intent(this, OverlayClockService.class));
+        }
 
         grid = findViewById(R.id.grid);
         rtlAppGrid = getResources().getBoolean(R.bool.rtl_app_grid);
@@ -316,7 +355,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         });
         btnSettings.setOnClickListener(v -> open(systemIntent(Settings.ACTION_SETTINGS)));
         btnSettings.setOnLongClickListener(v -> {
-            showSettingsMenu();
+            if (kidsMode) {
+                showKidsPinDialog(this::showSettingsMenu);
+            } else {
+                showSettingsMenu();
+            }
             return true;
         });
 
@@ -531,9 +574,33 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (hasFocus) showCardPrompt();
     }
 
+    private void showKidsPinDialog(Runnable onSuccess) {
+        SharedPreferences prefs = getSharedPreferences(Config.SETTINGS_NAME, MODE_PRIVATE);
+        android.widget.EditText et = new android.widget.EditText(this);
+        et.setInputType(android.text.InputType.TYPE_CLASS_NUMBER
+                | android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD);
+        et.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(4)});
+        et.setHint("0000");
+        new android.app.AlertDialog.Builder(this)
+                .setTitle(R.string.kids_mode_enter_pin)
+                .setView(et)
+                .setPositiveButton(android.R.string.ok, (d, w) -> {
+                    String pin = et.getText().toString().trim();
+                    if (pin.equals(prefs.getString("kids_pin", ""))) {
+                        onSuccess.run();
+                    } else {
+                        android.widget.Toast.makeText(this,
+                                R.string.kids_mode_wrong_pin, android.widget.Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        if (weatherFetcher != null) weatherFetcher.stop();
         ConnectivityManager cm = getSystemService(ConnectivityManager.class);
         TvInputManager tim = (TvInputManager) getSystemService(TV_INPUT_SERVICE);
         if (tim != null) tim.unregisterCallback(inputCallback);
@@ -772,6 +839,83 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         return true;
     }
 
+    @Override
+    public void onTileLongPress(int position, AppAdapter.Entry entry, boolean isDockTile, View anchor) {
+        if (entry.kind == AppAdapter.Entry.HOME_SETTINGS) return;
+        SharedPreferences prefs = getSharedPreferences(Config.SETTINGS_NAME, MODE_PRIVATE);
+
+        // Determine dock state for this app.
+        String dockPins    = prefs.getString("dock_pins",    "");
+        String dockRemoved = prefs.getString("dock_removed", "");
+        boolean isPinned   = contains(dockPins,    entry.pkg);
+        boolean isRemoved  = contains(dockRemoved, entry.pkg);
+        // isDockTile means it currently appears in a dock slot; un-pinning means adding to dock_removed
+        // unless it was added via dock_pins (in which case just remove the pin).
+        boolean inDock = isDockTile;
+
+        String dockLabel = inDock || isPinned
+                ? getString(R.string.tile_unpin) : getString(R.string.tile_pin);
+
+        String[] options = {dockLabel, getString(R.string.tile_hide), getString(R.string.tile_app_info)};
+        new android.app.AlertDialog.Builder(this)
+                .setTitle(entry.label)
+                .setItems(options, (dialog, which) -> {
+                    if (which == 0) {
+                        // Toggle dock pin
+                        if (isPinned) {
+                            prefs.edit().putString("dock_pins", remove(dockPins, entry.pkg)).apply();
+                        } else if (inDock) {
+                            prefs.edit().putString("dock_removed", append(dockRemoved, entry.pkg)).apply();
+                        } else {
+                            // Remove from dock_removed if previously removed, then pin
+                            prefs.edit()
+                                    .putString("dock_removed", remove(dockRemoved, entry.pkg))
+                                    .putString("dock_pins",    append(dockPins,    entry.pkg))
+                                    .apply();
+                        }
+                        recreate();
+                    } else if (which == 1) {
+                        // Hide app
+                        String hidden = prefs.getString("hidden_extra", "");
+                        prefs.edit().putString("hidden_extra", append(hidden, entry.pkg)).apply();
+                        reloadApps(false);
+                    } else {
+                        // App info
+                        Intent i = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                Uri.parse("package:" + entry.pkg));
+                        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        try { startActivity(i); } catch (ActivityNotFoundException ignored) { }
+                    }
+                })
+                .show();
+    }
+
+    /** True when the pipe-delimited list contains the given package. */
+    private static boolean contains(String list, String pkg) {
+        if (list == null || list.isEmpty()) return false;
+        for (String p : list.split("\\|", -1)) if (p.equals(pkg)) return true;
+        return false;
+    }
+
+    /** Append pkg to a pipe-delimited list (only if not already present). */
+    private static String append(String list, String pkg) {
+        if (contains(list, pkg)) return list;
+        return list == null || list.isEmpty() ? pkg : list + "|" + pkg;
+    }
+
+    /** Remove all occurrences of pkg from a pipe-delimited list. */
+    private static String remove(String list, String pkg) {
+        if (list == null || list.isEmpty()) return "";
+        StringBuilder sb = new StringBuilder();
+        for (String p : list.split("\\|", -1)) {
+            if (!p.isEmpty() && !p.equals(pkg)) {
+                if (sb.length() > 0) sb.append('|');
+                sb.append(p);
+            }
+        }
+        return sb.toString();
+    }
+
     private void focusTile(int position) {
         if (adapter.getItemCount() == 0) {
             btnWifi.requestFocus();
@@ -811,14 +955,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     // ---- top bar ---------------------------------------------------------------------------------
 
     private void updateGreeting() {
-        int hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
-        int res;
-        if (hour < 5) res = R.string.good_night;
-        else if (hour < 12) res = R.string.good_morning;
-        else if (hour < 17) res = R.string.good_afternoon;
-        else if (hour < 22) res = R.string.good_evening;
-        else res = R.string.good_night;
-        greeting.setText(res);
         if (shamsi) shamsiDate.setText(Shamsi.today());
     }
 

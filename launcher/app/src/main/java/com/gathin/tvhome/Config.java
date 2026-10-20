@@ -52,6 +52,14 @@ final class Config {
     final boolean reducedMotion;
     final String vpnApp;
     final boolean showHomeSettingsShortcut;
+    /** Animated weather background toggle (SharedPreferences key: weather_bg). */
+    final boolean weatherBg;
+    /** Ticker mode: 0=off, 1=news, 2=cricket, 3=both (SharedPreferences key: ticker_mode). */
+    final int tickerMode;
+    /** Kids mode: only dock_apps are shown; Settings long-press requires PIN (SharedPreferences key: kids_mode). */
+    final boolean kidsMode;
+    /** Floating clock overlay visible over all apps (SharedPreferences key: overlay_clock). */
+    final boolean overlayClockEnabled;
     /** Background colour behind everything, #RRGGBB; black unless a theme says otherwise. */
     final int backgroundColor;
     /** Time-of-day backdrop, 0 to 100 (config.xml, sky_intensity); 0 keeps the plain background. */
@@ -65,8 +73,9 @@ final class Config {
                    String sourcePanelService, String sourcePanelAction, String inputAction,
                    int columns, int rowsBelowDock, boolean animations, boolean advancedEffects,
                    boolean shamsiDate, boolean moduleCards, boolean reducedMotion, String vpnApp,
-                   boolean showHomeSettingsShortcut, int backgroundColor, int skyIntensity,
-                   File wallpaper, boolean overlayApplied) {
+                   boolean showHomeSettingsShortcut, boolean weatherBg, int tickerMode,
+                   boolean kidsMode, boolean overlayClockEnabled,
+                   int backgroundColor, int skyIntensity, File wallpaper, boolean overlayApplied) {
         this.dockApps = Collections.unmodifiableList(dockApps);
         this.hiddenApps = Collections.unmodifiableList(hiddenApps);
         this.liveTvPackage = liveTvPackage;
@@ -83,6 +92,10 @@ final class Config {
         this.reducedMotion = reducedMotion;
         this.vpnApp = vpnApp;
         this.showHomeSettingsShortcut = showHomeSettingsShortcut;
+        this.weatherBg = weatherBg;
+        this.tickerMode = tickerMode;
+        this.kidsMode = kidsMode;
+        this.overlayClockEnabled = overlayClockEnabled;
         this.backgroundColor = backgroundColor;
         this.skyIntensity = skyIntensity;
         this.wallpaper = wallpaper;
@@ -148,6 +161,39 @@ final class Config {
         if (chosenColumns >= 4 && chosenColumns <= 7) columns = chosenColumns;
         animations = choices.getBoolean("animations", animations);
         advancedEffects = choices.getBoolean("advanced_effects", advancedEffects);
+        boolean weatherBg          = choices.getBoolean("weather_bg",    false);
+        int tickerMode             = choices.getInt("ticker_mode",          0);
+        boolean kidsMode           = choices.getBoolean("kids_mode",      false);
+        boolean overlayClockEnabled = choices.getBoolean("overlay_clock", false);
+
+        // Apps hidden via the long-press tile popup.
+        String hiddenExtra = choices.getString("hidden_extra", null);
+        if (hiddenExtra != null && !hiddenExtra.isEmpty()) {
+            for (String p : hiddenExtra.split("\\|", -1)) {
+                if (!p.isEmpty()) hidden.add(p);
+            }
+        }
+        // Apps pinned to the dock from the long-press popup (prepended to the front).
+        String dockPins = choices.getString("dock_pins", null);
+        if (dockPins != null && !dockPins.isEmpty()) {
+            for (String p : dockPins.split("\\|", -1)) {
+                if (!p.isEmpty() && !dock.contains(p)) dock.add(0, p);
+            }
+        }
+        // Apps removed from the dock from the long-press popup.
+        String dockRemoved = choices.getString("dock_removed", null);
+        if (dockRemoved != null && !dockRemoved.isEmpty()) {
+            for (String p : dockRemoved.split("\\|", -1)) dock.remove(p);
+        }
+
+        String dockOrder = choices.getString(DockReorderActivity.DOCK_ORDER_KEY, null);
+        if (dockOrder != null && !dockOrder.isEmpty()) {
+            String[] saved = dockOrder.split("\\|", -1);
+            List<String> reordered = new ArrayList<>();
+            for (String p : saved) { if (dock.contains(p)) reordered.add(p); }
+            for (String p : dock)   { if (!reordered.contains(p)) reordered.add(p); }
+            dock = reordered;
+        }
         File wallpaper = dir != null ? new File(dir, WALLPAPER_NAME) : null;
         if (wallpaper != null && !(wallpaper.isFile() && wallpaper.length() > 0)) wallpaper = null;
         // A theme can also switch the wallpaper off while the file is still there.
@@ -155,8 +201,9 @@ final class Config {
 
         return new Config(dock, hidden, liveTv, liveTvAction, panelService, panelAction, inputAction,
                 Math.max(1, columns), Math.max(0, rowsBelow), animations, advancedEffects,
-                shamsi, moduleCards, reducedMotion, vpn, homeSettings, background,
-                Math.max(0, Math.min(100, skyIntensity)), wallpaper, applied);
+                shamsi, moduleCards, reducedMotion, vpn, homeSettings, weatherBg,
+                tickerMode, kidsMode, overlayClockEnabled,
+                background, Math.max(0, Math.min(100, skyIntensity)), wallpaper, applied);
     }
 
     private static void syncThemeChoices(SharedPreferences choices, File dir, File config) {
