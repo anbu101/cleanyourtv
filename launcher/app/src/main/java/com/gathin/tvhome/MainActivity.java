@@ -272,6 +272,16 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             if (canDraw) startService(new Intent(this, OverlayClockService.class));
         }
 
+        // Start the phone remote-control HTTP server (always on, no user action needed).
+        if (!RemoteService.running) {
+            Intent remoteSvc = new Intent(this, RemoteService.class);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(remoteSvc);
+            } else {
+                startService(remoteSvc);
+            }
+        }
+
         grid = findViewById(R.id.grid);
         rtlAppGrid = getResources().getBoolean(R.bool.rtl_app_grid);
         // Mirror only the app grid; the header and other locales keep their own layouts.
@@ -856,7 +866,17 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         String dockLabel = inDock || isPinned
                 ? getString(R.string.tile_unpin) : getString(R.string.tile_pin);
 
-        String[] options = {dockLabel, getString(R.string.tile_hide), getString(R.string.tile_app_info)};
+        boolean isSystemApp = false;
+        try {
+            android.content.pm.ApplicationInfo ai = getPackageManager()
+                    .getApplicationInfo(entry.pkg, 0);
+            isSystemApp = (ai.flags & android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0;
+        } catch (android.content.pm.PackageManager.NameNotFoundException ignored) { }
+
+        String[] options = isSystemApp
+                ? new String[]{dockLabel, getString(R.string.tile_hide), getString(R.string.tile_app_info)}
+                : new String[]{dockLabel, getString(R.string.tile_hide), getString(R.string.tile_app_info), getString(R.string.tile_uninstall)};
+
         new android.app.AlertDialog.Builder(this)
                 .setTitle(entry.label)
                 .setItems(options, (dialog, which) -> {
@@ -879,9 +899,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                         String hidden = prefs.getString("hidden_extra", "");
                         prefs.edit().putString("hidden_extra", append(hidden, entry.pkg)).apply();
                         reloadApps(false);
-                    } else {
+                    } else if (which == 2) {
                         // App info
                         Intent i = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                Uri.parse("package:" + entry.pkg));
+                        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        try { startActivity(i); } catch (ActivityNotFoundException ignored) { }
+                    } else {
+                        // Uninstall
+                        Intent i = new Intent(Intent.ACTION_UNINSTALL_PACKAGE,
                                 Uri.parse("package:" + entry.pkg));
                         i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                         try { startActivity(i); } catch (ActivityNotFoundException ignored) { }

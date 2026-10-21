@@ -89,6 +89,9 @@
     <string name="tile_unpin">Remove from dock</string>
     <string name="tile_hide">Hide app</string>
     <string name="tile_app_info">App info</string>
+    <string name="tile_uninstall">Uninstall</string>
+    <string name="remote_a11y_label">TV Remote Navigation</string>
+    <string name="remote_a11y_description">Lets the CleanYourTV phone remote control navigate menus and press Back in any app. No screen content is read or transmitted.</string>
     <string name="weather_bg">Weather background</string>
     <string name="weather_bg_state">Weather background: %1$s</string>
     <string name="weather_bg_hint">Shows an animated scene (rain, snow, clear sky …) that matches your current weather. Fetches location from your public IP — no GPS needed.</string>

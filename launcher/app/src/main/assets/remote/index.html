@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black"/>
+  <meta name="apple-mobile-web-app-title" content="TV Remote"/>
+  <meta name="theme-color" content="#0A0C14"/>
+  <link rel="manifest" href="/manifest.json"/>
+  <title>TV Remote</title>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{
+      --bg:#0A0C14;--surface:#12151F;--raise:#181B28;
+      --border:rgba(255,255,255,0.07);--text:#FFF;--muted:rgba(255,255,255,0.38);
+      --accent:#4DAE6D;--red:#E05252;--r:14px;
+      --sd:rgba(0,0,0,0.72);--sl:rgba(255,255,255,0.055);
+    }
+    html,body{height:100%;width:100%;background:var(--bg);color:var(--text);
+      font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;
+      -webkit-tap-highlight-color:transparent;user-select:none;
+      overflow:hidden;overscroll-behavior:none;}
+    body{display:flex;flex-direction:column;
+      padding: max(calc(env(safe-area-inset-top) + 10px), 72px)
+               max(calc(env(safe-area-inset-right) + 20px), 20px)
+               max(calc(env(safe-area-inset-bottom) + 12px), 38px)
+               max(calc(env(safe-area-inset-left) + 20px), 20px);
+      gap:8px;}
+    button{touch-action:manipulation;-webkit-user-select:none;cursor:pointer;font-family:inherit;border:none;}
+
+    /* Landscape overlay — iOS can't lock orientation via JS */
+    #landscape-warn{display:none;position:fixed;inset:0;background:#0A0C14;z-index:9999;
+      align-items:center;justify-content:center;flex-direction:column;gap:14px;}
+    @media(orientation:landscape){#landscape-warn{display:flex;}}
+    #landscape-warn .lw-icon{font-size:52px;transform:rotate(-90deg);}
+    #landscape-warn p{font-size:15px;color:var(--muted);text-align:center;padding:0 32px;}
+
+    /* 3D base */
+    .btn3d{
+      background:linear-gradient(160deg,var(--raise) 0%,var(--surface) 100%);
+      box-shadow:3px 3px 7px var(--sd),-1px -1px 4px var(--sl),inset 0 1px 0 rgba(255,255,255,0.06);
+      border:1px solid rgba(255,255,255,0.06);
+      transition:box-shadow .1s,transform .1s;}
+    .btn3d:active{box-shadow:1px 1px 3px var(--sd),inset 0 1px 3px rgba(0,0,0,.45);transform:translateY(2px) scale(0.96);}
+
+    /* Header */
+    .hdr{display:flex;align-items:center;justify-content:space-between;flex-shrink:0;padding:0 2px;position:relative;}
+    .hdr-left{display:flex;align-items:center;gap:7px;}
+    .dot{width:7px;height:7px;border-radius:50%;background:var(--muted);transition:background .4s,box-shadow .4s;}
+    .dot.on{background:var(--accent);box-shadow:0 0 8px var(--accent);}
+    .dot.off{background:var(--red);}
+    .hdr-label{font-size:12px;color:var(--muted);}
+    .hdr-title{font-size:16px;font-weight:700;letter-spacing:-.3px;position:absolute;left:50%;transform:translateX(-50%);}
+    .power-btn{
+      width:36px;height:36px;border-radius:50%;
+      background:linear-gradient(145deg,#2a1515,#1a0e0e);
+      box-shadow:3px 3px 7px rgba(0,0,0,.75),-1px -1px 4px rgba(255,80,80,.07),inset 0 1px 0 rgba(255,100,100,.08);
+      border:1px solid rgba(224,82,82,.25);color:var(--red);font-size:16px;
+      display:flex;align-items:center;justify-content:center;transition:box-shadow .1s,transform .1s;}
+    .power-btn:active{box-shadow:1px 1px 3px rgba(0,0,0,.75),inset 0 1px 3px rgba(0,0,0,.5);transform:translateY(2px) scale(0.94);}
+
+    /* ── App shortcuts 2×3 — icon fills the whole button ── */
+    .apps{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;flex-shrink:0;margin-top:4px;}
+    .app-btn{
+      height:78px;border-radius:var(--r);
+      display:flex;align-items:center;justify-content:center;
+      box-shadow:3px 3px 8px var(--sd),-1px -1px 4px var(--sl),inset 0 1px 0 rgba(255,255,255,.12);
+      border:none;transition:box-shadow .1s,transform .1s;overflow:hidden;position:relative;}
+    .app-btn:active{box-shadow:1px 1px 3px var(--sd),inset 0 2px 5px rgba(0,0,0,.45);transform:translateY(2px) scale(0.95);}
+    .app-btn svg,.app-btn span.ltr{pointer-events:none;}
+
+    /* Brand colours */
+    .app-yt    {background:#FF0000;}
+    .app-nflx  {background:#141414;border:1px solid #E50914;}
+    .app-prime {background:#00A8E0;}
+    .app-hstar {background:linear-gradient(135deg,#1B5FCB,#7B2FF7);}
+    .app-livetv{background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);}
+    .app-spotify{background:#1DB954;}
+
+    /* N logo for Netflix */
+    .nflx-n{font-size:38px;font-weight:900;font-style:italic;color:#E50914;
+      text-shadow:2px 0 0 rgba(0,0,0,.5);font-family:Georgia,serif;line-height:1;}
+
+    /* Spotify bars */
+    .spotify-icon{display:flex;flex-direction:column;gap:4px;align-items:center;}
+    .sp-bar{height:4px;border-radius:2px;background:#000;}
+
+    /* Middle row */
+    .middle{display:flex;align-items:center;gap:10px;flex:1;min-height:0;}
+    .dpad-wrap{flex:1;display:flex;justify-content:center;align-items:center;}
+    .dpad{
+      display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);
+      width:min(68vw,260px);aspect-ratio:1;
+      background:linear-gradient(145deg,var(--raise),var(--surface));
+      box-shadow:4px 4px 10px var(--sd),-2px -2px 6px var(--sl),inset 0 1px 0 rgba(255,255,255,.05);
+      border:1px solid rgba(255,255,255,.06);border-radius:50%;overflow:hidden;}
+    .dp{background:transparent;border:none;color:var(--text);display:flex;align-items:center;justify-content:center;font-size:13px;transition:background .08s;}
+    .dp:active{background:rgba(255,255,255,.16);}
+    .dp.corner{pointer-events:none;}
+    .dp-ok{
+      background:linear-gradient(145deg,rgba(77,174,109,.18),rgba(77,174,109,.07));
+      border-radius:50%;margin:11px;font-size:13px;font-weight:800;letter-spacing:.8px;
+      grid-column:2;grid-row:2;box-shadow:inset 0 1px 0 rgba(77,174,109,.2);transition:background .08s,box-shadow .08s;}
+    .dp-ok:active{background:rgba(77,174,109,.38);box-shadow:inset 0 2px 5px rgba(0,0,0,.4);}
+    .dp svg{width:22px;height:22px;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;fill:none;}
+
+    /* Vertical volume */
+    .vol-col{display:flex;flex-direction:column;align-items:center;gap:8px;flex-shrink:0;width:52px;}
+    .vol-icon{font-size:18px;line-height:1;}
+    .vol-num{font-size:13px;color:var(--muted);font-weight:600;}
+    .vol-track{flex:1;display:flex;align-items:center;justify-content:center;width:52px;min-height:144px;}
+    input[type="range"].vert{
+      writing-mode:vertical-lr;direction:rtl;-webkit-appearance:slider-vertical;
+      width:52px;height:100%;min-height:144px;max-height:216px;
+      outline:none;cursor:pointer;background:transparent;}
+    input[type="range"].vert::-webkit-slider-runnable-track{
+      width:12px;border-radius:6px;
+      background:linear-gradient(to bottom,rgba(255,255,255,.13) var(--fi,0%),var(--accent) var(--fi,0%));}
+    input[type="range"].vert::-webkit-slider-thumb{
+      -webkit-appearance:none;width:32px;height:32px;border-radius:50%;
+      background:linear-gradient(145deg,#fff,#ccc);
+      box-shadow:0 2px 10px rgba(0,0,0,.65),0 0 0 3px rgba(77,174,109,.35);
+      margin-left:-10px;cursor:grab;}
+    input[type="range"].vert:active::-webkit-slider-thumb{cursor:grabbing;}
+
+    /* Nav row */
+    .nav-row{display:flex;gap:7px;flex-shrink:0;}
+    .nav-btn{flex:1;height:48px;border-radius:var(--r);color:var(--text);font-size:12px;font-weight:600;
+      display:flex;align-items:center;justify-content:center;gap:5px;}
+    .nav-btn svg{width:15px;height:15px;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;fill:none;}
+    .nav-btn.home{
+      background:linear-gradient(160deg,rgba(77,174,109,.22),rgba(77,174,109,.08));
+      box-shadow:3px 3px 7px var(--sd),-1px -1px 4px rgba(77,174,109,.06),inset 0 1px 0 rgba(77,174,109,.14);
+      border:1px solid rgba(77,174,109,.24);color:var(--accent);transition:box-shadow .1s,transform .1s;}
+    .nav-btn.home:active{box-shadow:1px 1px 3px var(--sd),inset 0 1px 3px rgba(0,0,0,.4);transform:translateY(2px) scale(0.95);}
+
+    /* Media */
+    .media-row{display:flex;gap:7px;flex-shrink:0;}
+    .med-btn{flex:1;height:54px;border-radius:var(--r);color:var(--text);
+      display:flex;align-items:center;justify-content:center;}
+    .med-btn svg{width:22px;height:22px;fill:currentColor;stroke:none;}
+    .med-btn.play{
+      background:linear-gradient(160deg,rgba(77,174,109,.26),rgba(77,174,109,.1));
+      box-shadow:3px 3px 7px var(--sd),-1px -1px 4px rgba(77,174,109,.07),inset 0 1px 0 rgba(77,174,109,.15);
+      border:1px solid rgba(77,174,109,.26);color:var(--accent);transition:box-shadow .1s,transform .1s;}
+    .med-btn.play:active{box-shadow:1px 1px 3px var(--sd),inset 0 1px 3px rgba(0,0,0,.4);transform:translateY(2px) scale(0.95);}
+
+    /* Text input */
+    .text-row{display:flex;gap:8px;flex-shrink:0;}
+    .text-row input{flex:1;height:44px;background:var(--surface);border:1px solid var(--border);
+      border-radius:var(--r);color:var(--text);font-size:14px;padding:0 14px;outline:none;
+      -webkit-appearance:none;box-shadow:inset 2px 2px 5px rgba(0,0,0,.4);transition:border-color .15s;}
+    .text-row input:focus{border-color:rgba(77,174,109,.5);}
+    .text-row input::placeholder{color:var(--muted);}
+    .send-btn{width:44px;height:44px;
+      background:linear-gradient(145deg,#5dc97d,#3a9a57);
+      box-shadow:3px 3px 7px var(--sd),inset 0 1px 0 rgba(255,255,255,.2);
+      border-radius:var(--r);color:#fff;display:flex;align-items:center;justify-content:center;
+      flex-shrink:0;transition:box-shadow .1s,transform .1s;}
+    .send-btn:active{box-shadow:1px 1px 3px var(--sd),inset 0 1px 3px rgba(0,0,0,.4);transform:translateY(2px) scale(0.94);}
+
+    /* Toast */
+    #toast{position:fixed;bottom:calc(env(safe-area-inset-bottom)+24px);left:50%;
+      transform:translateX(-50%) translateY(64px);
+      background:rgba(20,24,32,.96);border:1px solid var(--border);border-radius:20px;
+      padding:7px 18px;font-size:12px;color:var(--muted);
+      transition:transform .22s cubic-bezier(.34,1.56,.64,1);
+      pointer-events:none;white-space:nowrap;z-index:99;}
+    #toast.show{transform:translateX(-50%) translateY(0);}
+  </style>
+</head>
+<body>
+
+  <!-- Portrait guard (iOS can't lock via JS) -->
+  <div id="landscape-warn">
+    <div class="lw-icon">📱</div>
+    <p>Please rotate your phone to portrait mode</p>
+  </div>
+
+  <!-- Header -->
+  <div class="hdr">
+    <div class="hdr-left">
+      <div class="dot" id="dot"></div>
+      <span class="hdr-label" id="stlbl">Connecting</span>
+    </div>
+    <span class="hdr-title">Remote</span>
+    <button class="power-btn" onclick="htap('power')">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 2v7"/><path d="M18.5 5.5a9 9 0 1 1-13 0"/></svg>
+    </button>
+  </div>
+
+  <!-- Apps 2×3 — icon fills the whole button -->
+  <div class="apps">
+
+    <!-- YouTube -->
+    <button class="app-btn app-yt" onclick="hlaunch('com.google.android.youtube.tv')">
+      <svg viewBox="0 0 80 56" width="72" height="50">
+        <rect width="80" height="56" rx="12" fill="#FF0000"/>
+        <polygon points="32,14 32,42 58,28" fill="white"/>
+      </svg>
+    </button>
+
+    <!-- Netflix -->
+    <button class="app-btn app-nflx" onclick="hlaunch('com.netflix.ninja')">
+      <span class="nflx-n">N</span>
+    </button>
+
+    <!-- Prime Video -->
+    <button class="app-btn app-prime" onclick="hlaunch('com.amazon.amazonvideo.livingroom')">
+      <svg viewBox="0 0 80 56" width="72" height="50">
+        <text x="6" y="38" font-size="22" font-weight="900" fill="white" font-family="-apple-system,sans-serif">prime</text>
+        <text x="6" y="52" font-size="12" font-weight="400" fill="rgba(255,255,255,0.8)" font-family="-apple-system,sans-serif">video</text>
+        <polygon points="64,22 64,40 76,31" fill="white"/>
+      </svg>
+    </button>
+
+    <!-- Hotstar -->
+    <button class="app-btn app-hstar" onclick="hlaunch('in.startv.hotstar')">
+      <svg viewBox="0 0 80 56" width="72" height="50">
+        <text x="8" y="28" font-size="13" font-weight="800" fill="white" font-family="-apple-system,sans-serif">hot</text>
+        <text x="8" y="46" font-size="13" font-weight="800" fill="#FFD700" font-family="-apple-system,sans-serif">star</text>
+        <polygon points="62,12 65,22 76,22 67,28 70,38 62,32 54,38 57,28 48,22 59,22" fill="#FFD700"/>
+      </svg>
+    </button>
+
+    <!-- Live TV -->
+    <button class="app-btn app-livetv" onclick="hlaunch('com.heytap.tv.livetv')">
+      <svg viewBox="0 0 80 56" width="72" height="50">
+        <rect x="10" y="18" width="44" height="30" rx="3" fill="none" stroke="#4fc3f7" stroke-width="2.5"/>
+        <rect x="14" y="22" width="36" height="22" rx="2" fill="rgba(79,195,247,0.15)"/>
+        <line x1="32" y1="48" x2="32" y2="54" stroke="#4fc3f7" stroke-width="2"/>
+        <line x1="48" y1="48" x2="48" y2="54" stroke="#4fc3f7" stroke-width="2"/>
+        <line x1="28" y1="54" x2="52" y2="54" stroke="#4fc3f7" stroke-width="2"/>
+        <circle cx="62" cy="16" r="4" fill="#FF4444"/>
+        <text x="56" y="32" font-size="9" font-weight="800" fill="white" font-family="-apple-system,sans-serif">LIVE</text>
+      </svg>
+    </button>
+
+    <!-- Spotify -->
+    <button class="app-btn app-spotify" onclick="hlaunch('com.spotify.tv.android')">
+      <svg viewBox="0 0 80 56" width="72" height="50">
+        <circle cx="40" cy="28" r="22" fill="#1DB954"/>
+        <path d="M26 22 Q40 16 54 21" stroke="black" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+        <path d="M27 29 Q40 23 53 28" stroke="black" stroke-width="3" stroke-linecap="round" fill="none"/>
+        <path d="M28 36 Q40 31 52 35" stroke="black" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+      </svg>
+    </button>
+
+  </div>
+
+  <!-- Middle: D-pad + vertical volume -->
+  <div class="middle">
+    <div class="dpad-wrap">
+      <div class="dpad">
+        <span class="dp corner"></span>
+        <button class="dp" onclick="htap('up')"><svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg></button>
+        <span class="dp corner"></span>
+        <button class="dp" onclick="htap('left')"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
+        <button class="dp dp-ok" onclick="htap('ok')">OK</button>
+        <button class="dp" onclick="htap('right')"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
+        <span class="dp corner"></span>
+        <button class="dp" onclick="htap('down')"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></button>
+        <span class="dp corner"></span>
+      </div>
+    </div>
+    <div class="vol-col">
+      <span class="vol-icon" id="vol-icon">🔊</span>
+      <div class="vol-track">
+        <input type="range" class="vert" id="vol" min="0" max="15" value="8"
+               oninput="onVolInput(this)" onchange="onVolChange(this)"/>
+      </div>
+      <span class="vol-num" id="vol-num">8</span>
+    </div>
+  </div>
+
+  <!-- Nav -->
+  <div class="nav-row">
+    <button class="nav-btn btn3d" onclick="htap('back')">
+      <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>Back
+    </button>
+    <button class="nav-btn home" onclick="htap('home')">
+      <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>Home
+    </button>
+    <button class="nav-btn btn3d" onclick="hlaunch('settings://tv')">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings
+    </button>
+  </div>
+
+  <!-- Media -->
+  <div class="media-row">
+    <button class="med-btn btn3d" onclick="htap('rewind')">
+      <svg viewBox="0 0 24 24"><polygon points="11,5 2,12 11,19" fill="currentColor"/><polygon points="22,5 13,12 22,19" fill="currentColor"/></svg>
+    </button>
+    <button class="med-btn btn3d" onclick="htap('prev')">
+      <svg viewBox="0 0 24 24"><polygon points="19,20 9,12 19,4" fill="currentColor"/><rect x="5" y="4" width="3" height="16" rx="1" fill="currentColor"/></svg>
+    </button>
+    <button class="med-btn play" onclick="htap('play_pause')">
+      <svg viewBox="0 0 24 24">
+        <rect x="6" y="4" width="4" height="16" rx="1.5" fill="currentColor"/>
+        <rect x="14" y="4" width="4" height="16" rx="1.5" fill="currentColor"/>
+      </svg>
+    </button>
+    <button class="med-btn btn3d" onclick="htap('next')">
+      <svg viewBox="0 0 24 24"><polygon points="5,4 15,12 5,20" fill="currentColor"/><rect x="16" y="4" width="3" height="16" rx="1" fill="currentColor"/></svg>
+    </button>
+    <button class="med-btn btn3d" onclick="htap('ff')">
+      <svg viewBox="0 0 24 24"><polygon points="13,5 22,12 13,19" fill="currentColor"/><polygon points="2,5 11,12 2,19" fill="currentColor"/></svg>
+    </button>
+  </div>
+
+  <!-- Text -->
+  <div class="text-row">
+    <input id="txt" type="text" placeholder="Type to send to TV…"
+           autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="send"/>
+    <button class="send-btn" onclick="sendText()">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+    </button>
+  </div>
+
+  <div id="toast"></div>
+
+  <script>
+    // ── Haptic (Android Chrome only; iOS Safari doesn't support vibration API) ─
+    function haptic(){if(navigator.vibrate)navigator.vibrate(22);}
+
+    // ── Key press ─────────────────────────────────────────────────────────────
+    const inFlight=new Set();
+    async function tap(name){
+      if(inFlight.has(name))return;
+      inFlight.add(name);
+      try{
+        const r=await fetch('/api/key',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+        if(!r.ok)toast('Error');
+      }catch{toast('Not reachable');}
+      finally{setTimeout(()=>inFlight.delete(name),150);}
+    }
+    function htap(name){haptic();tap(name);}
+
+    // ── App launch ────────────────────────────────────────────────────────────
+    async function launch(pkg){
+      try{
+        const r=await fetch('/api/launch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pkg})});
+        const d=await r.json();
+        if(!r.ok)toast(d.error||'Not installed');
+      }catch{toast('Not reachable');}
+    }
+    function hlaunch(pkg){haptic();launch(pkg);}
+
+    // ── Volume ────────────────────────────────────────────────────────────────
+    const slider=document.getElementById('vol'),volNum=document.getElementById('vol-num'),volIcon=document.getElementById('vol-icon');
+    function updateSliderUI(val,max){
+      const pct=max>0?(100-val/max*100).toFixed(1)+'%':'50%';
+      slider.style.setProperty('--fi',pct);
+      volNum.textContent=val;
+      volIcon.textContent=val===0?'🔇':parseInt(val)<parseInt(max)/2?'🔉':'🔊';
+    }
+    function onVolInput(el){haptic();updateSliderUI(parseInt(el.value),parseInt(el.max));}
+    let vt;
+    function onVolChange(el){
+      clearTimeout(vt);
+      vt=setTimeout(()=>fetch('/api/volume',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({level:parseInt(el.value)})}).catch(()=>{}),80);
+    }
+    async function initVolume(){
+      try{const d=await(await fetch('/api/volume')).json();slider.max=d.max;slider.value=d.current;updateSliderUI(d.current,d.max);}catch{}
+    }
+
+    // ── Text input ────────────────────────────────────────────────────────────
+    async function sendText(){
+      const box=document.getElementById('txt'),text=box.value.trim();
+      if(!text)return;haptic();
+      try{
+        const r=await fetch('/api/text',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text})});
+        if(r.ok){box.value='';toast('Sent ✓');}else toast('Error');
+      }catch{toast('Not reachable');}
+    }
+    document.getElementById('txt').addEventListener('keydown',e=>{if(e.key==='Enter')sendText();});
+
+    // ── Status polling ────────────────────────────────────────────────────────
+    const dot=document.getElementById('dot'),stlbl=document.getElementById('stlbl');
+    async function poll(){
+      try{
+        const d=await(await fetch('/api/status')).json();
+        dot.className='dot '+(d.online?'on':'off');
+        stlbl.textContent=d.online?'Online':'Offline';
+      }catch{dot.className='dot off';stlbl.textContent='No connection';}
+    }
+
+    // ── Toast ─────────────────────────────────────────────────────────────────
+    let tt;
+    function toast(msg){
+      const el=document.getElementById('toast');
+      el.textContent=msg;el.classList.add('show');
+      clearTimeout(tt);tt=setTimeout(()=>el.classList.remove('show'),2200);
+    }
+
+    // ── Init ──────────────────────────────────────────────────────────────────
+    poll();initVolume();setInterval(poll,15000);
+  </script>
+</body>
+</html>

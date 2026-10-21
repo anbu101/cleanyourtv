@@ -1,0 +1,10 @@
+{
+  "name": "TV Remote",
+  "short_name": "TV Remote",
+  "description": "CleanYourTV remote control",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0D1117",
+  "theme_color": "#0D1117",
+  "orientation": "portrait"
+}

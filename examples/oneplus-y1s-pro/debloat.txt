@@ -1,0 +1,49 @@
+# OnePlus Y1S Pro (model C00), Android TV 11 / SDK 30, firmware RTM8.240401.135
+# Live TV app: com.heytap.tv.livetv. Stock launcher: com.oneplus.tv.launcher.
+# Home replaced by: com.gathin.tvhome (cleanyourtv launcher).
+# Previous launcher: com.spocky.projengmenu (Projectivy) — disabled after new launcher confirmed.
+#
+# Apply:   TV_HOST=<tv ip> tools/disable.sh examples/oneplus-y1s-pro/debloat.txt
+# Undo:    TV_HOST=<tv ip> tools/restore.sh examples/oneplus-y1s-pro/debloat.txt
+# Everything is DISABLED, not uninstalled. Comment out any line you want to keep.
+#
+# Kept on purpose: com.heytap.tv.livetv (Inputs menu / Live TV), com.heytap.tvapiservice,
+# com.heytap.rom.service, com.heytap.tv.support, com.oneplus.tv.remote, com.oneplus.tv.screensaver
+# (used for the Clock screensaver), Play Store, Play Services, Spotify, all com.mediatek.*.
+# Uninstalled for user 0 (not re-installable without Play Store): com.heytap.mcs,
+# com.google.android.youtube.tvmusic, com.heytap.tv.btspeaker.
+# Projectivy (com.spocky.projengmenu) was the previous Home; disabled once new launcher was confirmed.
+
+# Weather / ambient
+net.oneplus.weather                    # OnePlus weather widget
+
+# OnePlus / HeyTap extras
+android.autoinstalls.config.OnePlus    # OEM app auto-install config
+oneplus.smarthome                      # OnePlus smart home control
+com.heytap.tv.camera                   # TV camera app
+com.heytap.tv.remotediagnosing         # Remote diagnostics (telemetry)
+com.heytap.tv.assistant.oneplus        # OnePlus TV Assistant
+com.heytap.olink                       # OnePlus Connect (phone link)
+com.heytap.optvfactory                 # Factory / calibration app
+
+# Google extras not needed
+com.google.android.marvin.talkback     # TalkBack accessibility (not used)
+com.android.printspooler               # Print spooler
+com.google.android.feedback            # Google feedback / crash reporter
+com.google.android.syncadapters.calendar  # Calendar sync (no Google Calendar app)
+com.google.android.play.games          # Google Play Games
+com.coloros.relax.tv                   # Relax / ambient sounds
+com.google.android.videos              # Google TV / Movies app
+com.google.android.katniss             # Google TV search / voice service
+com.google.android.tv.assistant        # Google TV Assistant overlay
+com.google.android.tts                 # Text-to-speech engine
+
+# Launchers replaced by com.gathin.tvhome
+com.google.android.tvlauncher          # Stock Google TV launcher
+com.google.android.tvrecommendations   # Recommendation service for stock launcher
+com.oneplus.tv.launcher                # OnePlus content launcher
+com.oneplus.tv.userguide               # OnePlus TV user guide app
+com.oneplus.tv.android.account         # OnePlus TV account integration
+
+# Previous Home (disabled after new launcher was confirmed)
+com.spocky.projengmenu                 # Projectivy launcher

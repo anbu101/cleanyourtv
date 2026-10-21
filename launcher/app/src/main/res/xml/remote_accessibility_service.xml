@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Configuration for the phone remote's accessibility service.
+     Receives no events (typeNone) — it only performs global actions. -->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/remote_a11y_description"
+    android:accessibilityEventTypes="typeWindowStateChanged"
+    android:accessibilityFlags="flagDefault"
+    android:notificationTimeout="0"
+    android:canPerformGestures="false"
+    android:canRetrieveWindowContent="true" />
