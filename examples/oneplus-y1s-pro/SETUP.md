@@ -263,6 +263,141 @@ examples/oneplus-y1s-pro/
 
 ---
 
+## Step 7 — Lock the TV to a static IP (mandatory)
+
+DHCP will eventually reassign the TV a different IP, breaking ADB and the phone
+remote. Set a static IP immediately after the first successful ADB connection so
+this never happens.
+
+On the TV (Settings → Network → Wi-Fi → Airtel_AirFiber → IP settings):
+
+| Field | Value |
+|---|---|
+| IP settings | Static |
+| IP address | 192.168.1.6 |
+| Gateway | 192.168.1.1 |
+| Network prefix length | 24 |
+| DNS 1 | 8.8.8.8 |
+| DNS 2 | 8.8.4.4 |
+
+Or via ADB (set before disconnecting the first time):
+
+```bash
+# Replace SSID and PASSWORD with your network credentials
+adb -s 192.168.1.6:5555 shell ip addr show wlan0 | grep "inet "   # confirm current IP first
+```
+
+Android TV's static IP UI is the most reliable method — the shell approach
+requires root. Use the TV settings screen.
+
+---
+
+## Step 8 — Kill the "No Internet" warning (one-time)
+
+Android TV runs a captive portal check against Google servers. Airtel AirFiber
+(and many Indian ISPs) block or slow these requests, causing a permanent "No
+Internet" badge even when LAN and actual internet are working fine.
+
+```bash
+adb -s 192.168.1.6:5555 shell settings put global captive_portal_mode 0
+adb -s 192.168.1.6:5555 shell settings put global captive_portal_server 127.0.0.1
+```
+
+This is harmless — the TV still has internet. It just stops trying to prove it.
+
+---
+
+## Troubleshooting
+
+### Physical remote becomes sluggish / intermittent
+
+**Symptom:** Physical BT remote works but is slow or drops inputs. LED may not
+blink when keys are pressed.
+
+**Cause:** The TV's Bluetooth stack degrades after long uptime or after an app
+process restart. The remote falls back to IR (slow, line-of-sight required).
+
+**Fix (in order of preference):**
+
+1. **Cold power cycle the TV** — unplug the power cable, wait 15 seconds, plug
+   back in. This resets the BT stack and the remote re-pairs automatically on
+   boot. This is the most reliable fix.
+
+2. **Reset BT stack via ADB** (if the TV is reachable):
+   ```bash
+   adb -s 192.168.1.6:5555 shell pm clear com.android.bluetooth
+   adb -s 192.168.1.6:5555 shell svc bluetooth disable
+   adb -s 192.168.1.6:5555 shell svc bluetooth enable
+   ```
+   Then hold **Home + Back** on the physical remote for 3 seconds to enter
+   BT pairing mode.
+
+**Do NOT run** `adb shell am force-stop com.gathin.tvhome` to try to fix this —
+it marks the accessibility service as crashed and requires a full TV reboot to
+recover.
+
+**Do NOT run** `adb shell am start AddAccessoryActivity` — it opens a
+"Searching for Accessories" screen that the remote cannot dismiss and that
+blocks all navigation until ADB sends `keyevent 4` (Back) twice.
+
+---
+
+### ADB unreachable after reboot
+
+**Symptom:** `adb connect 192.168.1.6:5555` times out or says "connection
+refused" after the TV reboots.
+
+**Causes and fixes:**
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Connection refused | Network Debugging turned off | Enable it on TV: Settings → Device Preferences → Developer Options → **Network Debugging** → ON |
+| Timeout, TV shows 0.0.0.0 IP | DHCP lease failed | Set static IP (Step 7) |
+| Timeout, no IP visible | TV in deep standby | Power cycle the TV |
+| Timeout after getting new IP | IP changed by DHCP | Set static IP (Step 7) |
+
+> **Network Debugging ≠ USB Debugging.** USB Debugging only enables ADB over
+> a cable. You need **Network Debugging** for ADB over Wi-Fi. They are separate
+> toggles in Developer Options.
+
+To find the TV's IP when you don't know it:
+```bash
+# Scan the whole subnet for open ADB port
+for i in $(seq 1 254); do (nc -z -w1 192.168.1.$i 5555 2>/dev/null && echo "TV at 192.168.1.$i") & done; wait
+```
+
+---
+
+### Phone remote shows "No connection" after APK update
+
+iOS caches the PWA at install time. After updating the launcher APK, the cached
+HTML is stale. Fix:
+
+1. Delete the "TV Remote" icon from the iPhone home screen
+2. Open Safari → `http://192.168.1.6:8765`
+3. Share → **Add to Home Screen** again
+
+The server already sends `Cache-Control: no-store` so Safari will always fetch
+fresh HTML, but the PWA shell itself is cached by iOS at add-to-home-screen
+time.
+
+---
+
+### AirPlay mirror button says "app not installed"
+
+The installed AirPlay receiver package name must match what's in the remote PWA.
+Check the actual installed package:
+
+```bash
+adb -s 192.168.1.6:5555 shell pm list packages | grep -iE "air|mirror|cast|screen"
+```
+
+The package on this TV is `com.boost.airplay.receiver`. If you install a
+different AirPlay app, update `hlaunch('com.boost.airplay.receiver')` in
+`launcher/app/src/main/assets/remote/index.html`.
+
+---
+
 ## Quick reference — common ADB commands
 
 ```bash
