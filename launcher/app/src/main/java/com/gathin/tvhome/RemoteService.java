@@ -68,6 +68,7 @@ public final class RemoteService extends Service {
         KEYS.put("rewind",      KeyEvent.KEYCODE_MEDIA_REWIND);
         KEYS.put("ff",          KeyEvent.KEYCODE_MEDIA_FAST_FORWARD);
         KEYS.put("power",       KeyEvent.KEYCODE_POWER);
+        KEYS.put("search",      KeyEvent.KEYCODE_SEARCH);
     }
 
     // ── Lifecycle ─────────────────────────────────────────────────────────────
