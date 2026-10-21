@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black"/>
   <meta name="apple-mobile-web-app-title" content="TV Remote"/>
   <meta name="theme-color" content="#0A0C14"/>
   <link rel="manifest" href="/manifest.json"/>
@@ -22,10 +22,7 @@
       -webkit-tap-highlight-color:transparent;user-select:none;
       overflow:hidden;overscroll-behavior:none;}
     body{display:flex;flex-direction:column;
-      padding: max(calc(env(safe-area-inset-top) + 10px), 52px)
-               max(calc(env(safe-area-inset-right) + 20px), 20px)
-               max(calc(env(safe-area-inset-bottom) + 12px), 38px)
-               max(calc(env(safe-area-inset-left) + 20px), 20px);
+      padding: 14px 20px 38px 20px;
       gap:8px;}
     button{touch-action:manipulation;-webkit-user-select:none;cursor:pointer;font-family:inherit;border:none;}
 
@@ -240,13 +237,9 @@
       </svg>
     </button>
 
-    <!-- Hotstar (center-top — dark gradient hides DI camera pill) -->
-    <button class="app-btn app-hstar" onclick="hlaunch('in.startv.hotstar')">
-      <svg viewBox="0 0 80 56" width="72" height="50">
-        <text x="8" y="28" font-size="13" font-weight="800" fill="white" font-family="-apple-system,sans-serif">hot</text>
-        <text x="8" y="46" font-size="13" font-weight="800" fill="#FFD700" font-family="-apple-system,sans-serif">star</text>
-        <polygon points="62,12 65,22 76,22 67,28 70,38 62,32 54,38 57,28 48,22 59,22" fill="#FFD700"/>
-      </svg>
+    <!-- Netflix -->
+    <button class="app-btn app-nflx" onclick="hlaunch('com.netflix.ninja')">
+      <span class="nflx-n">N</span>
     </button>
 
     <!-- Prime Video -->
@@ -258,9 +251,13 @@
       </svg>
     </button>
 
-    <!-- Netflix -->
-    <button class="app-btn app-nflx" onclick="hlaunch('com.netflix.ninja')">
-      <span class="nflx-n">N</span>
+    <!-- Hotstar -->
+    <button class="app-btn app-hstar" onclick="hlaunch('in.startv.hotstar')">
+      <svg viewBox="0 0 80 56" width="72" height="50">
+        <text x="8" y="28" font-size="13" font-weight="800" fill="white" font-family="-apple-system,sans-serif">hot</text>
+        <text x="8" y="46" font-size="13" font-weight="800" fill="#FFD700" font-family="-apple-system,sans-serif">star</text>
+        <polygon points="62,12 65,22 76,22 67,28 70,38 62,32 54,38 57,28 48,22 59,22" fill="#FFD700"/>
+      </svg>
     </button>
 
     <!-- Live TV -->
