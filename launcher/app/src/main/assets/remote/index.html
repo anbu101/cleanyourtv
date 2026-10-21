@@ -81,7 +81,7 @@
     .app-nflx  {background:#141414;border:1px solid #E50914;}
     .app-prime {background:#00A8E0;}
     .app-hstar {background:linear-gradient(135deg,#1B5FCB,#7B2FF7);}
-    .app-livetv{background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);}
+    .app-mirror{background:linear-gradient(135deg,#0d1b2a,#1a2744);border:1px solid rgba(100,149,237,.3);}
     .app-spotify{background:#1DB954;}
 
     /* N logo for Netflix */
@@ -190,6 +190,17 @@
       border-radius:var(--r);color:#fff;display:flex;align-items:center;justify-content:center;
       flex-shrink:0;transition:box-shadow .1s,transform .1s;}
     .send-btn:active{box-shadow:1px 1px 3px var(--sd),inset 0 1px 3px rgba(0,0,0,.4);transform:translateY(2px) scale(0.94);}
+    /* Cast file button (photo/video icon beside text box) */
+    .cast-file-btn{width:44px;height:44px;
+      background:linear-gradient(145deg,var(--raise),var(--surface));
+      box-shadow:3px 3px 7px var(--sd),-1px -1px 4px var(--sl),inset 0 1px 0 rgba(255,255,255,.06);
+      border:1px solid rgba(255,255,255,.09);border-radius:var(--r);color:var(--muted);
+      display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:box-shadow .1s,transform .1s,color .15s;}
+    .cast-file-btn:active{box-shadow:1px 1px 3px var(--sd),inset 0 1px 3px rgba(0,0,0,.4);transform:translateY(2px) scale(0.94);}
+    .cast-file-btn.uploading{color:var(--accent);}
+    /* Thin upload progress bar below text row */
+    .cast-prog{height:4px;background:var(--surface);border-radius:2px;overflow:hidden;flex-shrink:0;margin-top:-4px;display:none;}
+    .cast-prog-fill{height:100%;background:var(--accent);width:0%;transition:width .15s;}
 
     /* Toast */
     #toast{position:fixed;bottom:calc(env(safe-area-inset-bottom)+24px);left:50%;
@@ -260,17 +271,16 @@
       </svg>
     </button>
 
-    <!-- Live TV -->
-    <button class="app-btn app-livetv" onclick="hlaunch('com.heytap.tv.livetv')">
-      <svg viewBox="0 0 80 56" width="72" height="50">
-        <rect x="10" y="18" width="44" height="30" rx="3" fill="none" stroke="#4fc3f7" stroke-width="2.5"/>
-        <rect x="14" y="22" width="36" height="22" rx="2" fill="rgba(79,195,247,0.15)"/>
-        <line x1="32" y1="48" x2="32" y2="54" stroke="#4fc3f7" stroke-width="2"/>
-        <line x1="48" y1="48" x2="48" y2="54" stroke="#4fc3f7" stroke-width="2"/>
-        <line x1="28" y1="54" x2="52" y2="54" stroke="#4fc3f7" stroke-width="2"/>
-        <circle cx="62" cy="16" r="4" fill="#FF4444"/>
-        <text x="56" y="32" font-size="9" font-weight="800" fill="white" font-family="-apple-system,sans-serif">LIVE</text>
-      </svg>
+    <!-- AirScreen: tap → AirScreen opens on TV → iPhone Control Center → Screen Mirroring -->
+    <button class="app-btn app-mirror" onclick="hlaunch('com.istreamer.airscreen')">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:5px;pointer-events:none">
+        <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="#6495ED" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M2 18v1a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-1"/>
+          <polyline points="7 15 12 10 17 15"/>
+          <line x1="12" y1="10" x2="12" y2="22"/>
+        </svg>
+        <span style="font-size:11px;font-weight:700;color:#6495ED;letter-spacing:.3px">Mirror</span>
+      </div>
     </button>
 
     <!-- Spotify -->
@@ -357,14 +367,23 @@
     </button>
   </div>
 
-  <!-- Text -->
+  <!-- Text + cast file button -->
   <div class="text-row">
+    <button class="cast-file-btn" id="cast-btn" onclick="openCastPicker()" title="Send photo or video to TV">
+      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+        <polyline points="21 15 16 10 5 21"/>
+      </svg>
+    </button>
     <input id="txt" type="text" placeholder="Type to send to TV…"
            autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="send"/>
     <button class="send-btn" onclick="sendText()">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
     </button>
   </div>
+  <!-- Upload progress (hidden until a file is uploading) -->
+  <div class="cast-prog" id="cast-prog"><div class="cast-prog-fill" id="cast-prog-fill"></div></div>
+  <input type="file" id="cast-input" accept="image/*,video/*" style="display:none" onchange="onCastFile(this)">
 
   <div id="toast"></div>
 
@@ -572,6 +591,43 @@
       },{passive:false});
       btn.addEventListener('touchcancel', ()=>clearTimeout(timer));
     })();
+
+    // ── Cast (photo / video → TV) ─────────────────────────────────────────────
+    function openCastPicker(){
+      if(document.getElementById('cast-btn').classList.contains('uploading')) return;
+      document.getElementById('cast-input').click();
+    }
+    function onCastFile(input){
+      const file = input.files[0];
+      input.value = '';
+      if(!file) return;
+      haptic();
+      const btn      = document.getElementById('cast-btn');
+      const prog     = document.getElementById('cast-prog');
+      const fill     = document.getElementById('cast-prog-fill');
+      btn.classList.add('uploading');
+      prog.style.display = '';
+      fill.style.width = '0%';
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', '/api/cast');
+      xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+      xhr.setRequestHeader('X-Filename', encodeURIComponent(file.name));
+      xhr.upload.onprogress = e=>{
+        if(e.lengthComputable) fill.style.width = Math.round(e.loaded/e.total*100) + '%';
+      };
+      xhr.onload = ()=>{
+        fill.style.width = '100%';
+        if(xhr.status === 200){ toast('Opening on TV \u2713'); }
+        else { try{ toast(JSON.parse(xhr.responseText).error||'Upload failed'); }catch{ toast('Upload failed'); } }
+        setTimeout(()=>{ prog.style.display='none'; btn.classList.remove('uploading'); }, 1200);
+      };
+      xhr.onerror = xhr.ontimeout = ()=>{
+        toast('Not reachable');
+        prog.style.display='none'; btn.classList.remove('uploading');
+      };
+      xhr.timeout = 120000; // 2 min — enough for a ~200 MB video on LAN
+      xhr.send(file);
+    }
 
     // ── Init ──────────────────────────────────────────────────────────────────
     poll();initVolume();setInterval(poll,15000);

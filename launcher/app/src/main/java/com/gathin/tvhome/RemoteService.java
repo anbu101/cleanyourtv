@@ -6,6 +6,7 @@ import android.app.NotificationManager;
 import android.app.Service;
 import android.content.Intent;
 import android.media.AudioManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.IBinder;
 import android.os.Parcel;
@@ -13,14 +14,15 @@ import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
 
-import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
@@ -119,41 +121,63 @@ public final class RemoteService extends Service {
 
     private void handleClient(Socket client) {
         try (Socket s = client) {
-            s.setSoTimeout(8000);
-            BufferedReader in  = new BufferedReader(
-                    new InputStreamReader(s.getInputStream(), StandardCharsets.UTF_8));
-            OutputStream   out = s.getOutputStream();
+            s.setSoTimeout(30000); // 30 s; file uploads need more than the old 8 s
+            InputStream rawIn = s.getInputStream();
+            OutputStream out  = s.getOutputStream();
 
-            String requestLine = in.readLine();
-            if (requestLine == null || requestLine.trim().isEmpty()) return;
+            // Read headers byte-by-byte until the blank line (\r\n\r\n).
+            // We must NOT wrap in BufferedReader here — that would read-ahead into the binary body.
+            ByteArrayOutputStream headerBuf = new ByteArrayOutputStream(512);
+            int b, b1 = -1, b2 = -1, b3 = -1;
+            while ((b = rawIn.read()) != -1) {
+                headerBuf.write(b);
+                if (b3 == '\r' && b2 == '\n' && b1 == '\r' && b == '\n') break;
+                b3 = b2; b2 = b1; b1 = b;
+            }
 
-            String[] parts = requestLine.split(" ");
+            String[] lines = headerBuf.toString("UTF-8").split("\r\n");
+            if (lines.length == 0) return;
+
+            String[] parts = lines[0].split(" ");
             if (parts.length < 2) return;
             String method = parts[0];
             String path   = parts[1].split("\\?")[0];
 
-            int contentLength = 0;
-            String line;
-            while ((line = in.readLine()) != null && !line.isEmpty()) {
-                if (line.toLowerCase().startsWith("content-length:")) {
-                    try { contentLength = Integer.parseInt(line.substring(15).trim()); }
+            int    contentLength = 0;
+            String contentType   = "";
+            String xFilename     = "";
+            for (int i = 1; i < lines.length; i++) {
+                String lo = lines[i].toLowerCase();
+                if (lo.startsWith("content-length:")) {
+                    try { contentLength = Integer.parseInt(lines[i].substring(15).trim()); }
                     catch (NumberFormatException ignored) {}
+                } else if (lo.startsWith("content-type:")) {
+                    contentType = lines[i].substring(13).trim();
+                } else if (lo.startsWith("x-filename:")) {
+                    xFilename = lines[i].substring(11).trim();
                 }
             }
 
+            // /api/cast: stream raw bytes directly to disk — never convert to String
+            if ("POST".equals(method) && "/api/cast".equals(path)) {
+                handleCast(contentType, xFilename, rawIn, contentLength, out);
+                return;
+            }
+
+            // All other routes: read body as UTF-8 text (small JSON payloads only)
             String body = "";
             if (contentLength > 0 && "POST".equals(method)) {
-                char[] buf  = new char[Math.min(contentLength, 8192)];
+                byte[] buf  = new byte[Math.min(contentLength, 8192)];
                 int    read = 0;
                 while (read < buf.length) {
-                    int r = in.read(buf, read, buf.length - read);
+                    int r = rawIn.read(buf, read, buf.length - read);
                     if (r < 0) break;
                     read += r;
                 }
-                body = new String(buf, 0, read);
+                body = new String(buf, 0, read, StandardCharsets.UTF_8);
             }
-
             route(method, path, body, out);
+
         } catch (IOException e) {
             Log.w(TAG, "client: " + e.getMessage());
         }
@@ -496,12 +520,105 @@ public final class RemoteService extends Service {
         }
     }
 
+    // ── Cast (file upload → open on TV) ──────────────────────────────────────
+
+    /**
+     * Receives a raw binary body (photo or video) and streams it to disk,
+     * then opens it on the TV with ACTION_VIEW.
+     *
+     * The PWA sends:
+     *   POST /api/cast
+     *   Content-Type: image/jpeg   (or video/mp4, etc.)
+     *   X-Filename: IMG_1234.jpg   (URL-encoded)
+     *   <raw file bytes>
+     */
+    private void handleCast(String contentType, String xFilename, InputStream rawIn,
+                             int contentLength, OutputStream out) throws IOException {
+        // Decode and sanitize filename
+        String filename;
+        try { filename = URLDecoder.decode(xFilename, "UTF-8"); }
+        catch (Exception e) { filename = "cast_file"; }
+        filename = new File(filename).getName();                          // strip any path components
+        filename = filename.replaceAll("[^a-zA-Z0-9._\\- ]", "_").trim();
+        if (filename.isEmpty()) filename = "cast_file";
+
+        // MIME type (strip charset / boundary parameters)
+        String mime = contentType.split(";")[0].trim();
+        if (mime.isEmpty()) mime = "application/octet-stream";
+
+        // Append extension if the filename has none
+        String ext = extForMime(mime);
+        if (!ext.isEmpty() && filename.lastIndexOf('.') < 0) filename += ext;
+
+        File dir = getExternalFilesDir(null);
+        if (dir == null) dir = getCacheDir();
+        if (!dir.exists()) dir.mkdirs();
+        File file = new File(dir, filename);
+
+        Log.i(TAG, "cast: receiving " + filename + " (" + contentLength + " bytes) mime=" + mime);
+
+        // Stream body to file in 64 KB chunks — never loads the whole file into memory
+        try (FileOutputStream fos = new FileOutputStream(file)) {
+            byte[] chunk     = new byte[65536];
+            int    remaining = contentLength;
+            while (remaining > 0) {
+                int n = rawIn.read(chunk, 0, Math.min(chunk.length, remaining));
+                if (n < 0) break;
+                fos.write(chunk, 0, n);
+                remaining -= n;
+            }
+        } catch (IOException e) {
+            Log.w(TAG, "cast write: " + e.getMessage());
+            respond(out, 500, "application/json", "{\"error\":\"save failed\"}".getBytes());
+            return;
+        }
+
+        Log.i(TAG, "cast: saved " + file.getAbsolutePath() + " (" + file.length() + " B)");
+        openCastFile(file, mime);
+        respond(out, 200, "application/json", "{\"ok\":true}".getBytes());
+    }
+
+    private static String extForMime(String mime) {
+        switch (mime) {
+            case "image/jpeg":       return ".jpg";
+            case "image/png":        return ".png";
+            case "image/gif":        return ".gif";
+            case "image/webp":       return ".webp";
+            case "image/heic":
+            case "image/heif":       return ".heic";
+            case "video/mp4":        return ".mp4";
+            case "video/quicktime":  return ".mov";
+            case "video/x-matroska": return ".mkv";
+            case "video/webm":       return ".webm";
+            default:                 return "";
+        }
+    }
+
+    private void openCastFile(File file, String mime) {
+        try {
+            Uri uri = androidx.core.content.FileProvider.getUriForFile(
+                    this, "com.gathin.tvhome.fileprovider", file);
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            intent.setDataAndType(uri, mime);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    | Intent.FLAG_ACTIVITY_NEW_TASK
+                    | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            startActivity(intent);
+        } catch (Exception e) {
+            Log.w(TAG, "openCastFile: " + e.getMessage());
+        }
+    }
+
     // ── HTTP helpers ──────────────────────────────────────────────────────────
 
     private static void respond(OutputStream out, int status, String mime, byte[] body)
             throws IOException {
-        String phrase = status == 200 ? "OK" : status == 204 ? "No Content"
-                      : status == 400 ? "Bad Request" : "Not Found";
+        String phrase = status == 200 ? "OK"
+                      : status == 204 ? "No Content"
+                      : status == 400 ? "Bad Request"
+                      : status == 404 ? "Not Found"
+                      : status == 500 ? "Internal Server Error"
+                      : "Error";
         StringBuilder h = new StringBuilder();
         h.append("HTTP/1.1 ").append(status).append(' ').append(phrase).append("\r\n");
         h.append("Content-Type: ").append(mime).append("\r\n");

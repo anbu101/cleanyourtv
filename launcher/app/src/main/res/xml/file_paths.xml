@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- FileProvider paths for /api/cast — files saved here are shared with media players. -->
+<paths>
+    <external-files-path name="cast" path="." />
+    <cache-path name="cast_cache" path="." />
+</paths>
