@@ -1,6 +1,5 @@
 package com.gathin.tvhome;
 
-import android.accessibilityservice.AccessibilityService;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -330,42 +329,24 @@ public final class RemoteService extends Service {
 
             // Back — tvapisvc Instrumentation injection works in any app (Netflix etc.)
             case KeyEvent.KEYCODE_BACK: {
-                if (!injectKeyViaTvApiService(keyCode)) {
-                    RemoteAccessibilityService a11y = RemoteAccessibilityService.instance;
-                    if (a11y != null) {
-                        a11y.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
-                    } else {
-                        injectKey(keyCode);
-                    }
-                }
+                if (!injectKeyViaTvApiService(keyCode)) injectKey(keyCode);
                 return;
             }
 
             // Power — toggle screen on/off:
-            //   screen on  → GLOBAL_ACTION_LOCK_SCREEN (accessibility) puts TV to sleep
-            //   screen off → KEYCODE_WAKEUP (224) wakes the screen
+            //   screen off → tvapisvc ModulePower cmd 6 (setScreenOn)
+            //   screen on  → KEYCODE_SLEEP via tvapisvc (dims screen, keeps Android+HTTP alive)
             case KeyEvent.KEYCODE_POWER: {
                 android.os.PowerManager pm =
                         (android.os.PowerManager) getSystemService(POWER_SERVICE);
                 boolean interactive = pm == null || pm.isInteractive();
                 Log.i(TAG, "POWER pressed: isInteractive=" + interactive);
                 if (!interactive) {
-                    // Screen is off — wake via OnePlus tvapisvc (setScreenOn).
-                    // Falls back to KEYCODE_POWER injection if the binder call fails.
-                    Log.i(TAG, "POWER: calling tvapisvc setScreenOn");
-                    if (!wakeScreenViaTvApiService()) {
-                        injectKey(KeyEvent.KEYCODE_POWER);
-                    }
+                    if (!tvApiPower(6)) injectKey(KeyEvent.KEYCODE_POWER);
                 } else {
-                    // Screen is on — put it to sleep via accessibility
-                    RemoteAccessibilityService a11y = RemoteAccessibilityService.instance;
-                    if (a11y != null) {
-                        if (!a11y.performGlobalAction(AccessibilityService.GLOBAL_ACTION_LOCK_SCREEN)) {
-                            injectKey(keyCode);
-                        }
-                    } else {
-                        injectKey(keyCode);
-                    }
+                    // KEYCODE_SLEEP turns the screen off without deep-suspending Android,
+                    // so the HTTP server stays reachable and Power ON works next time.
+                    if (!injectKeyViaTvApiService(KeyEvent.KEYCODE_SLEEP)) injectKey(KeyEvent.KEYCODE_SLEEP);
                 }
                 return;
             }
@@ -409,38 +390,31 @@ public final class RemoteService extends Service {
     }
 
     /**
-     * Wakes the TV screen via OnePlus's proprietary tvapisvc binder service.
-     * Equivalent to ITvPowerManager.setScreenOn() which calls
-     * disPatchCommand("ModulePower", 6, null, false) on the ITvApi binder.
-     * Transaction code 4, descriptor com.oneplus.tvapi.ITvApi.
+     * Calls ModulePower via tvapisvc binder.
+     * cmd 6 = doScreenOn  (wake from standby)
+     * cmd 7 = doScreenOff (put to standby)
      */
-    private boolean wakeScreenViaTvApiService() {
+    private boolean tvApiPower(int cmd) {
         try {
             Class<?> sm = Class.forName("android.os.ServiceManager");
             java.lang.reflect.Method getService = sm.getMethod("getService", String.class);
             IBinder binder = (IBinder) getService.invoke(null, "tvapisvc");
-            if (binder == null) {
-                Log.w(TAG, "wakeScreen: tvapisvc binder is null");
-                return false;
-            }
+            if (binder == null) { Log.w(TAG, "tvApiPower: binder null"); return false; }
             Parcel data  = Parcel.obtain();
             Parcel reply = Parcel.obtain();
             try {
                 data.writeInterfaceToken("com.oneplus.tvapi.ITvApi");
                 data.writeString("ModulePower");
-                data.writeInt(6);   // command 6 = setScreenOn
-                data.writeInt(0);   // empty String[] — server does strArr.length unconditionally
-                data.writeInt(0);   // boolean false
+                data.writeInt(cmd); // 6=setScreenOn, 7=doScreenOff
+                data.writeInt(0);   // empty String[]
+                data.writeInt(0);   // boolean false → async via handler
                 binder.transact(4, data, reply, 0);
                 reply.readException();
-                Log.i(TAG, "wakeScreen: tvapisvc setScreenOn OK");
+                Log.i(TAG, "tvApiPower: cmd=" + cmd + " OK");
                 return true;
-            } finally {
-                data.recycle();
-                reply.recycle();
-            }
+            } finally { data.recycle(); reply.recycle(); }
         } catch (Exception e) {
-            Log.w(TAG, "wakeScreen: " + e);
+            Log.w(TAG, "tvApiPower: " + e);
             return false;
         }
     }

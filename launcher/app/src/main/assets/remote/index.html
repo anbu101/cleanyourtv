@@ -324,13 +324,20 @@
     // ── Haptic (Android Chrome only; iOS Safari doesn't support vibration API) ─
     function haptic(){if(navigator.vibrate)navigator.vibrate(22);}
 
+    // ── Fetch with timeout ────────────────────────────────────────────────────
+    function fetchT(url,opts,ms=3000){
+      const c=new AbortController();
+      const t=setTimeout(()=>c.abort(),ms);
+      return fetch(url,{...opts,signal:c.signal}).finally(()=>clearTimeout(t));
+    }
+
     // ── Key press ─────────────────────────────────────────────────────────────
     const inFlight=new Set();
     async function tap(name){
       if(inFlight.has(name))return;
       inFlight.add(name);
       try{
-        const r=await fetch('/api/key',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+        const r=await fetchT('/api/key',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
         if(!r.ok)toast('Error');
       }catch{toast('Not reachable');}
       finally{setTimeout(()=>inFlight.delete(name),150);}
@@ -340,7 +347,7 @@
     // ── App launch ────────────────────────────────────────────────────────────
     async function launch(pkg){
       try{
-        const r=await fetch('/api/launch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pkg})});
+        const r=await fetchT('/api/launch',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pkg})});
         const d=await r.json();
         if(!r.ok)toast(d.error||'Not installed');
       }catch{toast('Not reachable');}
@@ -359,7 +366,7 @@
     let vt;
     function onVolChange(el){
       clearTimeout(vt);
-      vt=setTimeout(()=>fetch('/api/volume',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({level:parseInt(el.value)})}).catch(()=>{}),80);
+      vt=setTimeout(()=>fetchT('/api/volume',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({level:parseInt(el.value)})}).catch(()=>{}),80);
     }
     async function initVolume(){
       try{const d=await(await fetch('/api/volume')).json();slider.max=d.max;slider.value=d.current;updateSliderUI(d.current,d.max);}catch{}
