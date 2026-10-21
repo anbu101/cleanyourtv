@@ -197,6 +197,7 @@
       border:1px solid rgba(255,255,255,.09);border-radius:var(--r);color:var(--muted);
       display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:box-shadow .1s,transform .1s,color .15s;}
     .mic-btn:active{box-shadow:1px 1px 3px var(--sd),inset 0 1px 3px rgba(0,0,0,.4);transform:translateY(2px) scale(0.94);color:#fff;}
+    .mic-btn.listening{color:var(--accent);border-color:rgba(77,174,109,.4);box-shadow:0 0 0 3px rgba(77,174,109,.2),3px 3px 7px var(--sd);}
     /* Cast file button (photo/video icon beside text box) */
     .cast-file-btn{width:44px;height:44px;
       background:linear-gradient(145deg,var(--raise),var(--surface));
@@ -400,7 +401,7 @@
     <button class="send-btn" onclick="sendText()">
       <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
     </button>
-    <button class="mic-btn" onclick="htap('search')" title="Voice search">
+    <button class="mic-btn" id="mic-btn" onclick="startVoice()" title="Voice search">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
         <rect x="9" y="2" width="6" height="11" rx="3"/>
         <path d="M5 10a7 7 0 0 0 14 0"/>
@@ -655,6 +656,32 @@
       };
       xhr.timeout = 120000; // 2 min — enough for a ~200 MB video on LAN
       xhr.send(file);
+    }
+
+    // ── Voice search ────────────────────────────────────────────────────────────
+    function startVoice(){
+      haptic();
+      var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if(!SR){
+        toast('Tap 🎤 on keyboard to dictate');
+        document.getElementById('txt').focus();
+        return;
+      }
+      var btn = document.getElementById('mic-btn');
+      if(btn.classList.contains('listening')) return;
+      var sr = new SR();
+      sr.lang = 'en-US';
+      sr.interimResults = false;
+      sr.maxAlternatives = 1;
+      btn.classList.add('listening');
+      toast('Listening…');
+      sr.onresult = function(e){
+        var text = e.results[0][0].transcript.trim();
+        if(text){ document.getElementById('txt').value = text; sendText(); }
+      };
+      sr.onerror = function(){ toast('Mic unavailable — use keyboard mic'); document.getElementById('txt').focus(); };
+      sr.onend = function(){ btn.classList.remove('listening'); };
+      sr.start();
     }
 
     // ── Init ──────────────────────────────────────────────────────────────────
