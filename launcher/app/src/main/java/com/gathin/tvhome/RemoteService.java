@@ -507,6 +507,7 @@ public final class RemoteService extends Service {
         h.append("Content-Type: ").append(mime).append("\r\n");
         h.append("Content-Length: ").append(body.length).append("\r\n");
         h.append("Access-Control-Allow-Origin: *\r\n");
+        h.append("Cache-Control: no-store\r\n");
         h.append("Connection: close\r\n");
         h.append("\r\n");
         out.write(h.toString().getBytes(StandardCharsets.UTF_8));
