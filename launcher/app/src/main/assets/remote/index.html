@@ -95,9 +95,34 @@
     .spotify-icon{display:flex;flex-direction:column;gap:4px;align-items:center;}
     .sp-bar{height:4px;border-radius:2px;background:#000;}
 
+    /* Mode toggle */
+    .mode-row{display:flex;background:var(--surface);border-radius:10px;padding:3px;gap:3px;flex-shrink:0;border:1px solid var(--border);}
+    .mode-btn{flex:1;height:28px;border-radius:7px;background:transparent;color:var(--muted);font-size:11px;font-weight:600;letter-spacing:.2px;transition:background .15s,color .15s;}
+    .mode-btn.active{background:var(--raise);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.4);}
+
     /* Middle row */
     .middle{display:flex;align-items:center;gap:10px;flex:1;min-height:0;}
     .dpad-wrap{flex:1;display:flex;justify-content:center;align-items:center;}
+
+    /* Trackpad */
+    .tp-wrap{flex:1;display:flex;justify-content:center;align-items:center;}
+    .trackpad{
+      width:min(68vw,260px);aspect-ratio:1;border-radius:24px;
+      background:linear-gradient(145deg,var(--raise),var(--surface));
+      box-shadow:4px 4px 10px var(--sd),-2px -2px 6px var(--sl),inset 0 1px 0 rgba(255,255,255,.05);
+      border:1px solid rgba(255,255,255,.06);
+      position:relative;overflow:hidden;touch-action:none;
+      display:flex;align-items:center;justify-content:center;}
+    .trackpad::before{
+      content:'';position:absolute;inset:0;
+      background:radial-gradient(circle at 50% 50%,rgba(255,255,255,.03) 0%,transparent 70%);
+      pointer-events:none;}
+    .tp-hint{font-size:11px;color:var(--muted);text-align:center;pointer-events:none;line-height:1.7;opacity:.55;}
+    .tp-dot{
+      position:absolute;width:24px;height:24px;border-radius:50%;
+      background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.2);
+      transform:translate(-50%,-50%);pointer-events:none;
+      transition:opacity .15s;opacity:0;}
     .dpad{
       display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);
       width:min(68vw,260px);aspect-ratio:1;
@@ -263,9 +288,15 @@
 
   </div>
 
+  <!-- Mode toggle -->
+  <div class="mode-row">
+    <button class="mode-btn active" id="mode-dpad" onclick="setMode('dpad')">D-Pad</button>
+    <button class="mode-btn" id="mode-tp" onclick="setMode('trackpad')">Trackpad</button>
+  </div>
+
   <!-- Middle: D-pad + vertical volume -->
   <div class="middle">
-    <div class="dpad-wrap">
+    <div class="dpad-wrap" id="dpad-panel">
       <div class="dpad">
         <span class="dp corner"></span>
         <button class="dp" onclick="htap('up')"><svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg></button>
@@ -276,6 +307,12 @@
         <span class="dp corner"></span>
         <button class="dp" onclick="htap('down')"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></button>
         <span class="dp corner"></span>
+      </div>
+    </div>
+    <div class="tp-wrap" id="tp-panel" style="display:none">
+      <div class="trackpad" id="tp">
+        <span class="tp-hint">Swipe to navigate<br>Tap to OK</span>
+        <div class="tp-dot" id="tp-dot"></div>
       </div>
     </div>
     <div class="vol-col">
@@ -446,6 +483,70 @@
       el.textContent=msg;el.classList.add('show');
       clearTimeout(tt);tt=setTimeout(()=>el.classList.remove('show'),2200);
     }
+
+    // ── Mode toggle ───────────────────────────────────────────────────────────
+    function setMode(m){
+      document.getElementById('dpad-panel').style.display = m==='dpad' ? '' : 'none';
+      document.getElementById('tp-panel').style.display   = m==='trackpad' ? '' : 'none';
+      document.getElementById('mode-dpad').classList.toggle('active', m==='dpad');
+      document.getElementById('mode-tp').classList.toggle('active', m==='trackpad');
+      localStorage.setItem('mode', m);
+    }
+    setMode(localStorage.getItem('mode') || 'dpad');
+
+    // ── Trackpad ──────────────────────────────────────────────────────────────
+    const TP_STEP = 36;      // px of finger travel per key event
+    const TP_TAP_DIST = 12;  // px max total movement to count as tap
+    const TP_TAP_MS = 280;   // ms max duration to count as tap
+    const TP_CD = 120;       // ms cooldown between same-direction sends
+
+    const tpEl  = document.getElementById('tp');
+    const tpDot = document.getElementById('tp-dot');
+    let tpStart = null, tpLast = null, tpAccX = 0, tpAccY = 0;
+    const tpNext = {up:0,down:0,left:0,right:0};
+
+    function tpKey(dir){
+      const now = Date.now();
+      if(now < tpNext[dir]) return;
+      tpNext[dir] = now + TP_CD;
+      haptic(); tap(dir);
+    }
+
+    tpEl.addEventListener('touchstart', e=>{
+      e.preventDefault();
+      const t = e.touches[0], r = tpEl.getBoundingClientRect();
+      tpStart = {x:t.clientX, y:t.clientY, ms:Date.now(), r};
+      tpLast  = {x:t.clientX, y:t.clientY};
+      tpAccX = 0; tpAccY = 0;
+      tpDot.style.left = (t.clientX - r.left) + 'px';
+      tpDot.style.top  = (t.clientY - r.top)  + 'px';
+      tpDot.style.opacity = '1';
+    },{passive:false});
+
+    tpEl.addEventListener('touchmove', e=>{
+      e.preventDefault();
+      const t = e.touches[0];
+      tpAccX += t.clientX - tpLast.x;
+      tpAccY += t.clientY - tpLast.y;
+      tpLast = {x:t.clientX, y:t.clientY};
+      tpDot.style.left = (t.clientX - tpStart.r.left) + 'px';
+      tpDot.style.top  = (t.clientY - tpStart.r.top)  + 'px';
+      while(tpAccX >=  TP_STEP){ tpKey('right'); tpAccX -= TP_STEP; }
+      while(tpAccX <= -TP_STEP){ tpKey('left');  tpAccX += TP_STEP; }
+      while(tpAccY >=  TP_STEP){ tpKey('down');  tpAccY -= TP_STEP; }
+      while(tpAccY <= -TP_STEP){ tpKey('up');    tpAccY += TP_STEP; }
+    },{passive:false});
+
+    tpEl.addEventListener('touchend', e=>{
+      e.preventDefault();
+      tpDot.style.opacity = '0';
+      if(!tpStart) return;
+      const dx = tpLast.x - tpStart.x, dy = tpLast.y - tpStart.y;
+      if(Math.hypot(dx,dy) < TP_TAP_DIST && Date.now() - tpStart.ms < TP_TAP_MS) htap('ok');
+      tpStart = null;
+    },{passive:false});
+
+    tpEl.addEventListener('touchcancel', e=>{ tpDot.style.opacity='0'; tpStart=null; },{passive:false});
 
     // ── Init ──────────────────────────────────────────────────────────────────
     poll();initVolume();setInterval(poll,15000);
