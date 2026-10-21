@@ -302,7 +302,7 @@
         <button class="dp" onclick="htap('up')"><svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg></button>
         <span class="dp corner"></span>
         <button class="dp" onclick="htap('left')"><svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg></button>
-        <button class="dp dp-ok" onclick="htap('ok')">OK</button>
+        <button class="dp dp-ok" id="dp-ok" onclick="htap('ok')">OK</button>
         <button class="dp" onclick="htap('right')"><svg viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg></button>
         <span class="dp corner"></span>
         <button class="dp" onclick="htap('down')"><svg viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg></button>
@@ -498,11 +498,13 @@
     const TP_STEP = 36;      // px of finger travel per key event
     const TP_TAP_DIST = 12;  // px max total movement to count as tap
     const TP_TAP_MS = 280;   // ms max duration to count as tap
+    const TP_LP_MS = 500;    // ms hold to trigger long-press (menu)
     const TP_CD = 120;       // ms cooldown between same-direction sends
 
     const tpEl  = document.getElementById('tp');
     const tpDot = document.getElementById('tp-dot');
     let tpStart = null, tpLast = null, tpAccX = 0, tpAccY = 0;
+    let tpLpTimer = null, tpLpFired = false;
     const tpNext = {up:0,down:0,left:0,right:0};
 
     function tpKey(dir){
@@ -511,6 +513,7 @@
       tpNext[dir] = now + TP_CD;
       haptic(); tap(dir);
     }
+    function tpCancelLp(){ clearTimeout(tpLpTimer); tpLpTimer = null; }
 
     tpEl.addEventListener('touchstart', e=>{
       e.preventDefault();
@@ -518,6 +521,8 @@
       tpStart = {x:t.clientX, y:t.clientY, ms:Date.now(), r};
       tpLast  = {x:t.clientX, y:t.clientY};
       tpAccX = 0; tpAccY = 0;
+      tpLpFired = false;
+      tpLpTimer = setTimeout(()=>{ tpLpFired=true; haptic(); haptic(); tap('menu'); }, TP_LP_MS);
       tpDot.style.left = (t.clientX - r.left) + 'px';
       tpDot.style.top  = (t.clientY - r.top)  + 'px';
       tpDot.style.opacity = '1';
@@ -531,6 +536,11 @@
       tpLast = {x:t.clientX, y:t.clientY};
       tpDot.style.left = (t.clientX - tpStart.r.left) + 'px';
       tpDot.style.top  = (t.clientY - tpStart.r.top)  + 'px';
+      // cancel long-press the moment the finger moves enough to be a swipe
+      if(tpLpTimer){
+        const dx=t.clientX-tpStart.x, dy=t.clientY-tpStart.y;
+        if(Math.hypot(dx,dy) > TP_TAP_DIST) tpCancelLp();
+      }
       while(tpAccX >=  TP_STEP){ tpKey('right'); tpAccX -= TP_STEP; }
       while(tpAccX <= -TP_STEP){ tpKey('left');  tpAccX += TP_STEP; }
       while(tpAccY >=  TP_STEP){ tpKey('down');  tpAccY -= TP_STEP; }
@@ -539,14 +549,32 @@
 
     tpEl.addEventListener('touchend', e=>{
       e.preventDefault();
+      tpCancelLp();
       tpDot.style.opacity = '0';
       if(!tpStart) return;
       const dx = tpLast.x - tpStart.x, dy = tpLast.y - tpStart.y;
-      if(Math.hypot(dx,dy) < TP_TAP_DIST && Date.now() - tpStart.ms < TP_TAP_MS) htap('ok');
+      if(!tpLpFired && Math.hypot(dx,dy) < TP_TAP_DIST && Date.now() - tpStart.ms < TP_TAP_MS) htap('ok');
       tpStart = null;
     },{passive:false});
 
-    tpEl.addEventListener('touchcancel', e=>{ tpDot.style.opacity='0'; tpStart=null; },{passive:false});
+    tpEl.addEventListener('touchcancel', e=>{ tpCancelLp(); tpDot.style.opacity='0'; tpStart=null; },{passive:false});
+
+    // ── D-pad OK long press ───────────────────────────────────────────────────
+    (function(){
+      const btn = document.getElementById('dp-ok');
+      let timer = null, fired = false;
+      btn.addEventListener('touchstart', e=>{
+        e.preventDefault(); // blocks the onclick so we control the action fully
+        fired = false;
+        timer = setTimeout(()=>{ fired=true; haptic(); haptic(); tap('menu'); }, 500);
+      },{passive:false});
+      btn.addEventListener('touchend', e=>{
+        e.preventDefault();
+        clearTimeout(timer);
+        if(!fired) htap('ok');
+      },{passive:false});
+      btn.addEventListener('touchcancel', ()=>clearTimeout(timer));
+    })();
 
     // ── Init ──────────────────────────────────────────────────────────────────
     poll();initVolume();setInterval(poll,15000);
