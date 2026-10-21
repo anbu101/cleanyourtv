@@ -34,8 +34,8 @@ com.google.android.syncadapters.calendar  # Calendar sync (no Google Calendar ap
 com.google.android.play.games          # Google Play Games
 com.coloros.relax.tv                   # Relax / ambient sounds
 com.google.android.videos              # Google TV / Movies app
-com.google.android.katniss             # Google TV search / voice service
-com.google.android.tv.assistant        # Google TV Assistant overlay
+# com.google.android.katniss             # Google TV search / voice service — KEEP: required for mic button on physical remote
+# com.google.android.tv.assistant        # Google TV Assistant overlay — KEEP: required for mic button on physical remote
 com.google.android.tts                 # Text-to-speech engine
 
 # Launchers replaced by com.gathin.tvhome
