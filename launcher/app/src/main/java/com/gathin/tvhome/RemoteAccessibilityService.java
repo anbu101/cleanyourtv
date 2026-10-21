@@ -89,4 +89,26 @@ public final class RemoteAccessibilityService extends AccessibilityService {
             root.recycle();
         }
     }
+
+    /**
+     * Long-clicks the currently focused node. Used for the long-press OK button.
+     * Triggers View.onLongClick() on the focused item — opens context menus,
+     * launcher settings shortcuts, etc.
+     */
+    public boolean longClickFocused() {
+        AccessibilityNodeInfo root = getRootInActiveWindow();
+        if (root == null) return false;
+        try {
+            AccessibilityNodeInfo focused = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT);
+            if (focused == null) focused = root.findFocus(AccessibilityNodeInfo.FOCUS_ACCESSIBILITY);
+            if (focused == null) return false;
+            try {
+                return focused.performAction(AccessibilityNodeInfo.ACTION_LONG_CLICK);
+            } finally {
+                focused.recycle();
+            }
+        } finally {
+            root.recycle();
+        }
+    }
 }

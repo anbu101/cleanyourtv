@@ -522,7 +522,7 @@
       tpLast  = {x:t.clientX, y:t.clientY};
       tpAccX = 0; tpAccY = 0;
       tpLpFired = false;
-      tpLpTimer = setTimeout(()=>{ tpLpFired=true; haptic(); haptic(); tap('menu'); }, TP_LP_MS);
+      tpLpTimer = setTimeout(()=>{ tpLpFired=true; haptic(); haptic(); tap('long_ok'); }, TP_LP_MS);
       tpDot.style.left = (t.clientX - r.left) + 'px';
       tpDot.style.top  = (t.clientY - r.top)  + 'px';
       tpDot.style.opacity = '1';
@@ -566,7 +566,7 @@
       btn.addEventListener('touchstart', e=>{
         e.preventDefault(); // blocks the onclick so we control the action fully
         fired = false;
-        timer = setTimeout(()=>{ fired=true; haptic(); haptic(); tap('menu'); }, 500);
+        timer = setTimeout(()=>{ fired=true; haptic(); haptic(); tap('long_ok'); }, 500);
       },{passive:false});
       btn.addEventListener('touchend', e=>{
         e.preventDefault();

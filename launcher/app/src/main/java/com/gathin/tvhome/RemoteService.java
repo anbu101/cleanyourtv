@@ -181,6 +181,11 @@ public final class RemoteService extends Service {
         // POST /api/key
         if ("POST".equals(method) && "/api/key".equals(path)) {
             String name = parseJsonString(body, "name");
+            if ("long_ok".equals(name)) {
+                sendLongOk();
+                respond(out, 200, "application/json", "{\"ok\":true}".getBytes());
+                return;
+            }
             Integer code = name != null ? KEYS.get(name) : null;
             if (code == null) {
                 respond(out, 400, "application/json", "{\"error\":\"unknown key\"}".getBytes());
@@ -376,6 +381,19 @@ public final class RemoteService extends Service {
             default:
                 injectKey(keyCode);
         }
+    }
+
+    /**
+     * Handles long-press OK from the phone remote.
+     * Uses AccessibilityService ACTION_LONG_CLICK on the focused node, which fires
+     * View.onLongClick() — opens context menus, launcher settings shortcuts, etc.
+     * Falls back to KEYCODE_MENU injection if the a11y service is unavailable.
+     */
+    private void sendLongOk() {
+        RemoteAccessibilityService a11y = RemoteAccessibilityService.instance;
+        if (a11y != null && a11y.longClickFocused()) return;
+        // Fallback: KEYCODE_MENU opens the options menu in some apps
+        if (!injectKeyViaTvApiService(KeyEvent.KEYCODE_MENU)) injectKey(KeyEvent.KEYCODE_MENU);
     }
 
     /** Maps KEYCODE_DPAD_* → View.FOCUS_* direction constants for node-based navigation. */
