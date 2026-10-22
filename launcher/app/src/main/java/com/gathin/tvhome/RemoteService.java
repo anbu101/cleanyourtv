@@ -43,6 +43,10 @@ public final class RemoteService extends Service {
     private ServerSocket serverSocket;
     private Thread       serverThread;
     private AudioManager audioManager;
+    // Sleep timer
+    private final android.os.Handler sleepHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+    private Runnable sleepRunnable;
+    private long sleepEndMs = 0;
 
     /** Static flag so MainActivity can avoid starting a second copy. */
     public static volatile boolean running = false;
@@ -289,6 +293,27 @@ public final class RemoteService extends Service {
                 sendText(text);
                 respond(out, 200, "application/json", "{\"ok\":true}".getBytes());
             }
+            return;
+        }
+
+        // GET /api/sleep — returns remaining seconds (0 = not set)
+        if ("GET".equals(method) && "/api/sleep".equals(path)) {
+            long remaining = sleepEndMs > 0 ? Math.max(0, (sleepEndMs - System.currentTimeMillis()) / 1000) : 0;
+            respond(out, 200, "application/json",
+                    ("{\"remaining\":" + remaining + "}").getBytes());
+            return;
+        }
+
+        // POST /api/sleep — set or cancel sleep timer; minutes=0 cancels
+        if ("POST".equals(method) && "/api/sleep".equals(path)) {
+            int minutes = parseJsonInt(body, "minutes");
+            if (sleepRunnable != null) { sleepHandler.removeCallbacks(sleepRunnable); sleepRunnable = null; sleepEndMs = 0; }
+            if (minutes > 0) {
+                sleepEndMs = System.currentTimeMillis() + minutes * 60_000L;
+                sleepRunnable = () -> { sendKey(KeyEvent.KEYCODE_SLEEP); sleepRunnable = null; sleepEndMs = 0; };
+                sleepHandler.postDelayed(sleepRunnable, minutes * 60_000L);
+            }
+            respond(out, 200, "application/json", "{\"ok\":true}".getBytes());
             return;
         }
 

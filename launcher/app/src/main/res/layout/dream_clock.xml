@@ -5,6 +5,15 @@
     android:layout_height="match_parent"
     android:background="#FF000000">
 
+    <!-- Photo frame backdrop; GONE when no photos are found. -->
+    <ImageView
+        android:id="@+id/dreamPhoto"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:visibility="gone"
+        android:importantForAccessibility="no" />
+
     <!-- Weather backdrop in screensaver; GONE when weather background is off. -->
     <com.gathin.tvhome.WeatherView
         android:id="@+id/dreamWeather"

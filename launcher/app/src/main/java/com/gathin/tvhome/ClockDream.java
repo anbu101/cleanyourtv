@@ -2,12 +2,20 @@ package com.gathin.tvhome;
 
 import android.animation.ArgbEvaluator;
 import android.animation.ValueAnimator;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Handler;
 import android.os.Looper;
 import android.service.dreams.DreamService;
 import android.view.View;
+import android.widget.ImageView;
 
+import java.io.File;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Random;
 
 /**
@@ -29,6 +37,11 @@ public class ClockDream extends DreamService {
     private int glowColor;
     private WeatherView dreamWeather;
     private WeatherFetcher dreamWeatherFetcher;
+    private ImageView dreamPhoto;
+    private List<File> photoFiles = Collections.emptyList();
+    private int photoIndex = 0;
+    private static final long PHOTO_INTERVAL_MS = 30_000L;
+    private static final String PHOTO_DIR = "photos";
 
     private final Runnable tick = new Runnable() {
         @Override
@@ -49,6 +62,7 @@ public class ClockDream extends DreamService {
 
         content = findViewById(R.id.dreamContent);
         dreamWeather = findViewById(R.id.dreamWeather);
+        dreamPhoto = findViewById(R.id.dreamPhoto);
         View ambient = findViewById(R.id.dreamAmbient);
         glow = new GradientDrawable();
         glow.setGradientType(GradientDrawable.RADIAL_GRADIENT);
@@ -68,10 +82,30 @@ public class ClockDream extends DreamService {
             content.animate().alpha(1f).setDuration(1200).start();
         });
         handler.postDelayed(tick, MOVE_MS);
+        // Photo frame: scan for images in the photos subfolder.
+        File photoDir = new File(getExternalFilesDir(null), PHOTO_DIR);
+        if (photoDir.isDirectory()) {
+            File[] imgs = photoDir.listFiles(f -> {
+                String n = f.getName().toLowerCase();
+                return n.endsWith(".jpg") || n.endsWith(".jpeg")
+                        || n.endsWith(".png") || n.endsWith(".webp");
+            });
+            if (imgs != null && imgs.length > 0) {
+                photoFiles = new ArrayList<>(Arrays.asList(imgs));
+                Collections.shuffle(photoFiles, random);
+                photoIndex = 0;
+                showNextPhoto();
+            }
+        }
         // Show weather backdrop if enabled in launcher settings.
         Config cfg = Config.load(this);
         if (cfg.weatherBg && dreamWeather != null) {
-            dreamWeatherFetcher = new WeatherFetcher((scene, label) -> dreamWeather.setScene(scene));
+            dreamWeatherFetcher = new WeatherFetcher((scene, label) -> {
+                WeatherView.Scene effective = (cfg.allowedWeatherScenes.isEmpty()
+                        || cfg.allowedWeatherScenes.contains(scene.name()))
+                        ? scene : WeatherView.Scene.NONE;
+                dreamWeather.setScene(effective);
+            });
             dreamWeatherFetcher.start();
         }
     }
@@ -83,7 +117,10 @@ public class ClockDream extends DreamService {
             dreamWeatherFetcher = null;
         }
         if (dreamWeather != null) dreamWeather.setScene(WeatherView.Scene.NONE);
+        if (dreamPhoto != null) { dreamPhoto.setImageBitmap(null); dreamPhoto.setVisibility(View.GONE); }
+        photoFiles = Collections.emptyList();
         handler.removeCallbacks(tick);
+        handler.removeCallbacks(photoTick);
         super.onDreamingStopped();
     }
 
@@ -91,6 +128,49 @@ public class ClockDream extends DreamService {
     public void onDetachedFromWindow() {
         handler.removeCallbacks(tick);
         super.onDetachedFromWindow();
+    }
+
+    // ── Photo frame ──────────────────────────────────────────────────────────
+
+    private final Runnable photoTick = this::showNextPhoto;
+
+    private void showNextPhoto() {
+        if (photoFiles.isEmpty() || dreamPhoto == null) return;
+        File file = photoFiles.get(photoIndex % photoFiles.size());
+        photoIndex++;
+        new Thread(() -> {
+            Bitmap bmp = decodeSampled(file, getResources().getDisplayMetrics().widthPixels,
+                    getResources().getDisplayMetrics().heightPixels);
+            if (bmp == null) { handler.post(photoTick); return; }
+            handler.post(() -> {
+                dreamPhoto.setAlpha(0f);
+                dreamPhoto.setImageBitmap(bmp);
+                dreamPhoto.setVisibility(View.VISIBLE);
+                dreamPhoto.animate().alpha(1f).setDuration(1500).start();
+                handler.postDelayed(photoTick, PHOTO_INTERVAL_MS);
+            });
+        }).start();
+    }
+
+    private static Bitmap decodeSampled(File file, int reqW, int reqH) {
+        try {
+            BitmapFactory.Options opts = new BitmapFactory.Options();
+            opts.inJustDecodeBounds = true;
+            BitmapFactory.decodeFile(file.getAbsolutePath(), opts);
+            opts.inSampleSize = calcSampleSize(opts, reqW, reqH);
+            opts.inJustDecodeBounds = false;
+            return BitmapFactory.decodeFile(file.getAbsolutePath(), opts);
+        } catch (Exception e) { return null; }
+    }
+
+    private static int calcSampleSize(BitmapFactory.Options opts, int reqW, int reqH) {
+        int h = opts.outHeight, w = opts.outWidth, s = 1;
+        if (h > reqH || w > reqW) {
+            int hRatio = Math.round((float) h / reqH);
+            int wRatio = Math.round((float) w / reqW);
+            s = Math.min(hRatio, wRatio);
+        }
+        return Math.max(1, s);
     }
 
     private void moveClock() {
