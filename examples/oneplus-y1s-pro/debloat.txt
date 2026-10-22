@@ -9,7 +9,9 @@
 #
 # Kept on purpose: com.heytap.tv.livetv (Inputs menu / Live TV), com.heytap.tvapiservice,
 # com.heytap.rom.service, com.heytap.tv.support, com.oneplus.tv.remote, com.oneplus.tv.screensaver
-# (used for the Clock screensaver), Play Store, Play Services, Spotify, all com.mediatek.*.
+# (used for the Clock screensaver), com.heytap.tv.assistant.oneplus (required for physical remote
+# navigation AND channel launching inside Airtel Xtream TV — disabling breaks both),
+# Play Store, Play Services, Spotify, all com.mediatek.*.
 # Uninstalled for user 0 (not re-installable without Play Store): com.heytap.mcs,
 # com.google.android.youtube.tvmusic, com.heytap.tv.btspeaker.
 # Projectivy (com.spocky.projengmenu) was the previous Home; disabled once new launcher was confirmed.
@@ -22,7 +24,7 @@ android.autoinstalls.config.OnePlus    # OEM app auto-install config
 oneplus.smarthome                      # OnePlus smart home control
 com.heytap.tv.camera                   # TV camera app
 com.heytap.tv.remotediagnosing         # Remote diagnostics (telemetry)
-com.heytap.tv.assistant.oneplus        # OnePlus TV Assistant
+# com.heytap.tv.assistant.oneplus      # OnePlus TV Assistant — KEEP: required for physical remote inside Xtream TV + channel launching
 com.heytap.olink                       # OnePlus Connect (phone link)
 com.heytap.optvfactory                 # Factory / calibration app
 
