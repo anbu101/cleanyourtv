@@ -117,6 +117,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private TickerFetcher tickerFetcher;
     private android.widget.TextView cricketBadge;
     private CricketFetcher cricketFetcher;
+    private android.widget.TextView marketBadge;
+    private MarketFetcher marketFetcher;
     private android.widget.TextView screenTimeView;
     private boolean kidsMode;
     private String vpnApp;
@@ -294,6 +296,20 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 }
             });
             cricketFetcher.start();
+        }
+
+        // Market ticker (Nifty / BankNifty / Sensex)
+        marketBadge = findViewById(R.id.marketBadge);
+        if (cfg.marketTicker) {
+            marketFetcher = new MarketFetcher(formatted -> {
+                if (formatted != null) {
+                    marketBadge.setText(formatted);
+                    marketBadge.setVisibility(android.view.View.VISIBLE);
+                } else {
+                    marketBadge.setVisibility(android.view.View.GONE);
+                }
+            });
+            marketFetcher.start();
         }
 
         // Overlay clock — start service if enabled and permission granted

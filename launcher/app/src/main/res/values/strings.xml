@@ -78,6 +78,8 @@
     <string name="ticker_mode_both">News + Cricket</string>
     <string name="cricket_state">Live cricket score: %1$s</string>
     <string name="cricket_hint">Shows live match score in the top-right corner. Only appears when a match is in progress.</string>
+    <string name="market_state">Market ticker: %1$s</string>
+    <string name="market_hint">Nifty and Bank Nifty. Updates every 15 s during market hours (9:15–3:30 IST).</string>
     <string name="kids_mode_state">Kids mode: %1$s</string>
     <string name="kids_mode_hint">Shows only your curated dock apps. Requires a PIN to access settings.</string>
     <string name="kids_mode_set_pin">Set a 4-digit PIN to protect Kids Mode</string>

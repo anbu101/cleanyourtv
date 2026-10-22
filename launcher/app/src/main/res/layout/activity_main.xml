@@ -71,32 +71,59 @@
                     android:orientation="horizontal"
                     android:baselineAligned="true">
 
-                    <TextClock
-                        android:id="@+id/clock"
+                    <!-- Left: Time + weather stacked -->
+                    <LinearLayout
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:format12Hour="h:mm"
-                        android:format24Hour="HH:mm"
-                        android:textColor="#FFFFFFFF"
-                        android:textSize="52sp"
-                        android:fontFamily="@font/outfit_light"
-                        android:letterSpacing="-0.04"
-                        android:includeFontPadding="false" />
+                        android:orientation="vertical">
 
-                    <TextClock
-                        android:id="@+id/ampm"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="6dp"
-                        android:layout_gravity="bottom"
-                        android:layout_marginBottom="8dp"
-                        android:format12Hour="a"
-                        android:format24Hour=""
-                        android:textColor="#B3FFFFFF"
-                        android:textSize="15sp"
-                        android:fontFamily="@font/outfit_medium"
-                        android:letterSpacing="0.08"
-                        android:textAllCaps="true" />
+                        <LinearLayout
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:baselineAligned="true">
+
+                            <TextClock
+                                android:id="@+id/clock"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:format12Hour="h:mm"
+                                android:format24Hour="HH:mm"
+                                android:textColor="#FFFFFFFF"
+                                android:textSize="52sp"
+                                android:fontFamily="@font/outfit_light"
+                                android:letterSpacing="-0.04"
+                                android:includeFontPadding="false" />
+
+                            <TextClock
+                                android:id="@+id/ampm"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="6dp"
+                                android:layout_gravity="bottom"
+                                android:layout_marginBottom="8dp"
+                                android:format12Hour="a"
+                                android:format24Hour=""
+                                android:textColor="#B3FFFFFF"
+                                android:textSize="15sp"
+                                android:fontFamily="@font/outfit_medium"
+                                android:letterSpacing="0.08"
+                                android:textAllCaps="true" />
+                        </LinearLayout>
+
+                        <!-- Weather badge: "28° · Drizzle", shown only when weather background is on. -->
+                        <TextView
+                            android:id="@+id/weatherBadge"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="-4dp"
+                            android:textColor="#99FFFFFF"
+                            android:textSize="12sp"
+                            android:fontFamily="@font/outfit_regular"
+                            android:letterSpacing="0.06"
+                            android:singleLine="true"
+                            android:visibility="gone" />
+                    </LinearLayout>
 
                     <View
                         android:layout_width="1dp"
@@ -107,6 +134,7 @@
                         android:layout_marginBottom="8dp"
                         android:background="#33FFFFFF" />
 
+                    <!-- Right: Date + screen time + market stacked -->
                     <LinearLayout
                         android:layout_width="0dp"
                         android:layout_weight="1"
@@ -145,20 +173,6 @@
                             android:letterSpacing="0.14"
                             android:textAllCaps="true" />
 
-                        <!-- Weather badge: "28° · Drizzle", shown only when weather background is on. -->
-                        <TextView
-                            android:id="@+id/weatherBadge"
-                            android:gravity="left"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="3dp"
-                            android:textColor="#99FFFFFF"
-                            android:textSize="12sp"
-                            android:fontFamily="@font/outfit_regular"
-                            android:letterSpacing="0.06"
-                            android:singleLine="true"
-                            android:visibility="gone" />
-
                         <!-- Screen time: "2h 40m today · 50h 1m this week" -->
                         <TextView
                             android:id="@+id/screenTime"
@@ -172,6 +186,20 @@
                             android:letterSpacing="0.04"
                             android:singleLine="true"
                             android:visibility="gone" />
+
+                        <!-- Market ticker: NIFTY · BANKNIFTY -->
+                        <TextView
+                            android:id="@+id/marketBadge"
+                            android:gravity="left"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="3dp"
+                            android:textSize="11sp"
+                            android:fontFamily="@font/outfit_regular"
+                            android:letterSpacing="0.02"
+                            android:singleLine="true"
+                            android:visibility="gone"
+                            android:importantForAccessibility="no" />
                     </LinearLayout>
                 </LinearLayout>
 
@@ -182,8 +210,8 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_alignParentEnd="true"
-                android:layout_alignBottom="@id/leftBlock"
-                android:layout_marginBottom="6dp"
+                android:layout_alignTop="@id/leftBlock"
+                android:layout_marginTop="10dp"
                 android:orientation="horizontal">
 
                 <TextView
@@ -211,7 +239,7 @@
                     android:nextFocusDown="@+id/grid" />
             </LinearLayout>
 
-            <!-- Live cricket score badge: "● LIVE ODI · IND 185/4 v AUS 120/3" -->
+            <!-- Live cricket score badge: "T20I · IND 285/4 v NZ 11/2" -->
             <TextView
                 android:id="@+id/cricketBadge"
                 android:layout_width="wrap_content"
@@ -225,6 +253,7 @@
                 android:singleLine="true"
                 android:visibility="gone"
                 android:importantForAccessibility="no" />
+
         </RelativeLayout>
 
         <!-- The wrapper clips at the grid's edge; the grid itself must not clip so scaled tiles can overflow their cells. -->

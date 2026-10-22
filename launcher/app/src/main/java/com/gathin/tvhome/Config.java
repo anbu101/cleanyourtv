@@ -62,6 +62,8 @@ final class Config {
     final int tickerMode;
     /** Show live cricket score badge (SharedPreferences key: cricket_live). */
     final boolean cricketLiveScore;
+    /** Show Nifty/BankNifty/Sensex tickers (SharedPreferences key: market_ticker). */
+    final boolean marketTicker;
     /** Kids mode: only dock_apps are shown; Settings long-press requires PIN (SharedPreferences key: kids_mode). */
     final boolean kidsMode;
     /** Floating clock overlay visible over all apps (SharedPreferences key: overlay_clock). */
@@ -80,7 +82,7 @@ final class Config {
                    int columns, int rowsBelowDock, boolean animations, boolean advancedEffects,
                    boolean shamsiDate, boolean moduleCards, boolean reducedMotion, String vpnApp,
                    boolean showHomeSettingsShortcut, boolean weatherBg, Set<String> allowedWeatherScenes, int tickerMode,
-                   boolean cricketLiveScore, boolean kidsMode, boolean overlayClockEnabled,
+                   boolean cricketLiveScore, boolean marketTicker, boolean kidsMode, boolean overlayClockEnabled,
                    int backgroundColor, int skyIntensity, File wallpaper, boolean overlayApplied) {
         this.dockApps = Collections.unmodifiableList(dockApps);
         this.hiddenApps = Collections.unmodifiableList(hiddenApps);
@@ -102,6 +104,7 @@ final class Config {
         this.allowedWeatherScenes = Collections.unmodifiableSet(allowedWeatherScenes);
         this.tickerMode = tickerMode;
         this.cricketLiveScore = cricketLiveScore;
+        this.marketTicker = marketTicker;
         this.kidsMode = kidsMode;
         this.overlayClockEnabled = overlayClockEnabled;
         this.backgroundColor = backgroundColor;
@@ -177,6 +180,7 @@ final class Config {
         }
         int tickerMode             = choices.getInt("ticker_mode",          0);
         boolean cricketLiveScore   = choices.getBoolean("cricket_live",   false);
+        boolean marketTicker       = choices.getBoolean("market_ticker", false);
         boolean kidsMode           = choices.getBoolean("kids_mode",      false);
         boolean overlayClockEnabled = choices.getBoolean("overlay_clock", false);
 
@@ -216,7 +220,7 @@ final class Config {
         return new Config(dock, hidden, liveTv, liveTvAction, panelService, panelAction, inputAction,
                 Math.max(1, columns), Math.max(0, rowsBelow), animations, advancedEffects,
                 shamsi, moduleCards, reducedMotion, vpn, homeSettings, weatherBg, allowedScenes,
-                tickerMode, cricketLiveScore, kidsMode, overlayClockEnabled,
+                tickerMode, cricketLiveScore, marketTicker, kidsMode, overlayClockEnabled,
                 background, Math.max(0, Math.min(100, skyIntensity)), wallpaper, applied);
     }
 

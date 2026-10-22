@@ -28,6 +28,8 @@ public final class LauncherSettingsActivity extends Activity {
     private TextView tickerChoice;
     private TextView cricketChoice;
     private boolean cricketLiveScore;
+    private TextView marketChoice;
+    private boolean marketTicker;
     private TextView kidsModeChoice;
     private TextView overlayClockChoice;
     private int columns;
@@ -52,6 +54,7 @@ public final class LauncherSettingsActivity extends Activity {
         weatherBg = config.weatherBg;
         tickerMode = config.tickerMode;
         cricketLiveScore = config.cricketLiveScore;
+        marketTicker = config.marketTicker;
         kidsMode = config.kidsMode;
         overlayClockEnabled = config.overlayClockEnabled;
 
@@ -116,6 +119,14 @@ public final class LauncherSettingsActivity extends Activity {
         cricketChoice.setOnClickListener(v -> {
             cricketLiveScore = !cricketLiveScore;
             choices.edit().putBoolean("cricket_live", cricketLiveScore).apply();
+            setResult(RESULT_OK);
+            refresh();
+        });
+
+        marketChoice = findViewById(R.id.marketChoice);
+        marketChoice.setOnClickListener(v -> {
+            marketTicker = !marketTicker;
+            choices.edit().putBoolean("market_ticker", marketTicker).apply();
             setResult(RESULT_OK);
             refresh();
         });
@@ -218,6 +229,8 @@ public final class LauncherSettingsActivity extends Activity {
                         ? R.string.ticker_mode_off : R.string.ticker_mode_news)));
         cricketChoice.setText(getString(R.string.cricket_state,
                 getString(cricketLiveScore ? R.string.on : R.string.off)));
+        marketChoice.setText(getString(R.string.market_state,
+                getString(marketTicker ? R.string.on : R.string.off)));
         kidsModeChoice.setText(getString(R.string.kids_mode_state,
                 getString(kidsMode ? R.string.on : R.string.off)));
         overlayClockChoice.setText(getString(R.string.overlay_clock_state,
