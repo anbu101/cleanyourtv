@@ -5,6 +5,8 @@ import android.animation.ValueAnimator;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.drawable.GradientDrawable;
+import android.media.MediaScannerConnection;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.service.dreams.DreamService;
@@ -41,7 +43,7 @@ public class ClockDream extends DreamService {
     private List<File> photoFiles = Collections.emptyList();
     private int photoIndex = 0;
     private static final long PHOTO_INTERVAL_MS = 30_000L;
-    private static final String PHOTO_DIR = "photos";
+    private static final String PHOTO_DIR = "CleanYourTV";
 
     private final Runnable tick = new Runnable() {
         @Override
@@ -82,8 +84,16 @@ public class ClockDream extends DreamService {
             content.animate().alpha(1f).setDuration(1200).start();
         });
         handler.postDelayed(tick, MOVE_MS);
-        // Photo frame: scan for images in the photos subfolder.
-        File photoDir = new File(getExternalFilesDir(null), PHOTO_DIR);
+        // Photo frame: use /sdcard/Pictures/CleanYourTV — visible in any file manager.
+        File photoDir = new File(
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES),
+                PHOTO_DIR);
+        if (!photoDir.exists()) {
+            photoDir.mkdirs();
+            // Notify file manager so the empty folder appears immediately.
+            MediaScannerConnection.scanFile(this, new String[]{photoDir.getAbsolutePath()},
+                    null, null);
+        }
         if (photoDir.isDirectory()) {
             File[] imgs = photoDir.listFiles(f -> {
                 String n = f.getName().toLowerCase();
