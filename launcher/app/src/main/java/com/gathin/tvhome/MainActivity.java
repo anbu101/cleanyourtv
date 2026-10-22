@@ -360,7 +360,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             int itemH = AppAdapter.itemHeightPx(AppAdapter.tileHeightPx(AppAdapter.tileWidthPx(inner, COLUMNS, density)), density);
             int dockRow = itemH + (int) ((6 + 12) * density);   // item height plus DockDecoration offsets
             int gridRows = itemH * rowsBelowDock;
-            int want = Math.max(0, h - dockRow - gridRows - (int) (30 * density));
+            int want = Math.max(0, h - dockRow - gridRows);
             if (grid.getPaddingTop() != want) {
                 grid.setPadding(grid.getPaddingLeft(), want, grid.getPaddingRight(), grid.getPaddingBottom());
             }
