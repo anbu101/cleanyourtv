@@ -906,8 +906,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                         i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                         try { startActivity(i); } catch (ActivityNotFoundException ignored) { }
                     } else {
-                        // Uninstall
-                        Intent i = new Intent(Intent.ACTION_UNINSTALL_PACKAGE,
+                        // Uninstall — ACTION_UNINSTALL_PACKAGE doesn't render on this TV;
+                        // open App Info instead (Uninstall button there works correctly).
+                        Intent i = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
                                 Uri.parse("package:" + entry.pkg));
                         i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                         try { startActivity(i); } catch (ActivityNotFoundException ignored) { }
