@@ -182,7 +182,7 @@ public final class WeatherView extends View {
                 stops  = new float[]{ 0f, 0.35f, 0.70f, 1f };
                 break;
             case CLOUDY:
-                colors = new int[]{ 0xFF0F1720, 0xFF182330, 0xFF1E2C3A, 0xFF253544 };
+                colors = new int[]{ 0xFF1A2535, 0xFF26374A, 0xFF2E4155, 0xFF364C62 };
                 stops  = new float[]{ 0f, 0.35f, 0.65f, 1f };
                 break;
             case FOG:
@@ -318,18 +318,51 @@ public final class WeatherView extends View {
     }
 
     // =========================================================================
-    // CLOUDY — thick layered cloud masses
+    // CLOUDY — thick layered cloud masses with depth, breathing and ambient light
     // =========================================================================
     private void drawCloudy(Canvas canvas, int w, int h, float t, float dt) {
+        // Soft diffused light — simulates the sun hidden behind the cloud layer
+        float lightPulse = 0.75f + 0.25f * (float) Math.sin(t * 0.12f);
+        fillPaint.setShader(new android.graphics.RadialGradient(
+                w * 0.5f, h * 0.28f, h * 0.6f,
+                new int[]{ Color.argb((int)(lightPulse * 38), 190, 210, 230),
+                           Color.argb((int)(lightPulse * 14), 150, 175, 200),
+                           0x00000000 },
+                new float[]{ 0f, 0.45f, 1f }, android.graphics.Shader.TileMode.CLAMP));
+        canvas.drawRect(0, 0, w, h, fillPaint);
+        fillPaint.setShader(null);
+
+        // Subtle horizon brightening
+        fillPaint.setShader(new android.graphics.LinearGradient(0, h * 0.55f, 0, h,
+                0x00AABBCC, 0x12A0B5C5, android.graphics.Shader.TileMode.CLAMP));
+        canvas.drawRect(0, h * 0.55f, w, h, fillPaint);
+        fillPaint.setShader(null);
+
         advanceClouds(w, dt);
-        // Multiple layers: back-to-front
-        for (int pass = 0; pass < 3; pass++) {
-            for (int i = 0; i < CLOUD_N; i++) {
-                if (i % 3 != pass) continue;
-                float shade = 0x50 + pass * 0x18;
-                int col = Color.argb((int)(ca[i] * 200), (int)shade, (int)(shade + 12), (int)(shade + 20));
-                drawCloudPuff(canvas, cx[i] + pass * 30, cy[i], cw[i] * (1 + pass * 0.2f), ch[i], col, ca[i]);
-            }
+
+        // Layer 0 — distant, near top, small and dark
+        for (int i = 0; i < CLOUD_N; i++) {
+            if (i % 3 != 0) continue;
+            float breathe = 0.82f + 0.18f * (float) Math.sin(t * 0.09f + i * 1.3f);
+            int shade = 92; int r = shade, g = shade + 10, b = shade + 22;
+            int col = Color.argb((int)(ca[i] * 190 * breathe), r, g, b);
+            drawCloudPuff(canvas, cx[i], cy[i] * 0.65f, cw[i] * 0.85f, ch[i] * 0.7f, col, ca[i] * 0.68f);
+        }
+        // Layer 1 — mid distance
+        for (int i = 0; i < CLOUD_N; i++) {
+            if (i % 3 != 1) continue;
+            float breathe = 0.88f + 0.12f * (float) Math.sin(t * 0.11f + i * 0.9f);
+            int shade = 112; int r = shade, g = shade + 12, b = shade + 24;
+            int col = Color.argb((int)(ca[i] * 215 * breathe), r, g, b);
+            drawCloudPuff(canvas, cx[i] + 50, cy[i], cw[i] * 1.05f, ch[i], col, ca[i] * 0.85f);
+        }
+        // Layer 2 — foreground, largest and lightest
+        for (int i = 0; i < CLOUD_N; i++) {
+            if (i % 3 != 2) continue;
+            float breathe = 0.90f + 0.10f * (float) Math.sin(t * 0.08f + i * 0.7f);
+            int shade = 135; int r = shade, g = shade + 13, b = shade + 25;
+            int col = Color.argb((int)(ca[i] * 235 * breathe), r, g, b);
+            drawCloudPuff(canvas, cx[i] + 20, cy[i] + h * 0.06f, cw[i] * 1.35f, ch[i] * 1.2f, col, ca[i] * breathe);
         }
     }
 

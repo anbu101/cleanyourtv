@@ -224,7 +224,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         TextView weatherBadge = findViewById(R.id.weatherBadge);
         if (cfg.weatherBg) {
             weatherFetcher = new WeatherFetcher((scene, label) -> {
-                weatherView.setScene(scene);
+                // Apply scene only if it is in the allowed set (empty = all allowed).
+                WeatherView.Scene effective = (cfg.allowedWeatherScenes.isEmpty()
+                        || cfg.allowedWeatherScenes.contains(scene.name()))
+                        ? scene : WeatherView.Scene.NONE;
+                weatherView.setScene(effective);
                 if (weatherBadge != null) {
                     if (label != null && !label.isEmpty()) {
                         weatherBadge.setText(label);

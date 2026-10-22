@@ -49,6 +49,15 @@
             android:text="@string/weather_bg_hint" />
 
         <TextView
+            android:id="@+id/weatherScenesChoice"
+            style="@style/SettingsRow"
+            android:layout_marginTop="8dp" />
+
+        <TextView
+            style="@style/SettingsHint"
+            android:text="@string/weather_scenes_hint" />
+
+        <TextView
             android:id="@+id/tickerChoice"
             style="@style/SettingsRow"
             android:layout_marginTop="8dp" />

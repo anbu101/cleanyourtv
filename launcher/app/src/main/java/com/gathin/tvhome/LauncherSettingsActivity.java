@@ -24,6 +24,7 @@ public final class LauncherSettingsActivity extends Activity {
     private TextView advancedChoice;
     private TextView followThemeChoice;
     private TextView weatherBgChoice;
+    private TextView weatherScenesChoice;
     private TextView tickerChoice;
     private TextView kidsModeChoice;
     private TextView overlayClockChoice;
@@ -95,6 +96,9 @@ public final class LauncherSettingsActivity extends Activity {
             setResult(RESULT_OK);
             refresh();
         });
+
+        weatherScenesChoice = findViewById(R.id.weatherScenesChoice);
+        weatherScenesChoice.setOnClickListener(v -> showWeatherScenesDialog());
 
         tickerChoice = findViewById(R.id.tickerChoice);
         tickerChoice.setOnClickListener(v -> {
@@ -196,6 +200,7 @@ public final class LauncherSettingsActivity extends Activity {
         advancedChoice.setAlpha(animations ? 1f : 0.5f);
         weatherBgChoice.setText(getString(R.string.weather_bg_state,
                 getString(weatherBg ? R.string.on : R.string.off)));
+        updateWeatherScenesLabel();
         int[] tickerLabels = {R.string.ticker_mode_off, R.string.ticker_mode_news,
                 R.string.ticker_mode_cricket, R.string.ticker_mode_both};
         tickerChoice.setText(getString(R.string.ticker_state, getString(tickerLabels[tickerMode])));
@@ -265,4 +270,63 @@ public final class LauncherSettingsActivity extends Activity {
             Toast.makeText(this, R.string.not_available, Toast.LENGTH_LONG).show();
         }
     }
+    // ── Weather scenes filter ─────────────────────────────────────────────────
+
+    private static final String[] SCENE_KEYS = {
+        "CLEAR_DAY", "CLEAR_NIGHT", "CLOUDY", "FOG", "DRIZZLE", "RAIN", "SNOW", "THUNDERSTORM"
+    };
+
+    private void showWeatherScenesDialog() {
+        String saved = choices.getString("weather_scenes", "");
+        java.util.Set<String> enabled = new java.util.HashSet<>();
+        if (!saved.isEmpty()) {
+            enabled.addAll(java.util.Arrays.asList(saved.split("\\|", -1)));
+        }
+        boolean allEnabled = saved.isEmpty();
+
+        String[] labels = {
+            getString(R.string.weather_scene_clear),
+            getString(R.string.weather_scene_clear) + " (night)",
+            getString(R.string.weather_scene_cloudy),
+            getString(R.string.weather_scene_fog),
+            getString(R.string.weather_scene_drizzle),
+            getString(R.string.weather_scene_rain),
+            getString(R.string.weather_scene_snow),
+            getString(R.string.weather_scene_thunderstorm)
+        };
+        boolean[] checked = new boolean[SCENE_KEYS.length];
+        for (int i = 0; i < SCENE_KEYS.length; i++) {
+            checked[i] = allEnabled || enabled.contains(SCENE_KEYS[i]);
+        }
+
+        new AlertDialog.Builder(this)
+            .setTitle(R.string.weather_scenes)
+            .setMultiChoiceItems(labels, checked, (dialog, which, isChecked) -> checked[which] = isChecked)
+            .setPositiveButton(android.R.string.ok, (dialog, which) -> {
+                java.util.List<String> selected = new java.util.ArrayList<>();
+                for (int i = 0; i < SCENE_KEYS.length; i++) {
+                    if (checked[i]) selected.add(SCENE_KEYS[i]);
+                }
+                // If all selected, store "" (= no filter = all allowed)
+                boolean allChosen = selected.size() == SCENE_KEYS.length;
+                choices.edit().putString("weather_scenes", allChosen ? "" : android.text.TextUtils.join("|", selected)).apply();
+                setResult(RESULT_OK);
+                updateWeatherScenesLabel();
+            })
+            .setNegativeButton(android.R.string.cancel, null)
+            .show();
+    }
+
+    private void updateWeatherScenesLabel() {
+        String saved = choices.getString("weather_scenes", "");
+        String summary;
+        if (saved.isEmpty()) {
+            summary = "All scenes";
+        } else {
+            String[] parts = saved.split("\\|", -1);
+            summary = parts.length + " of " + SCENE_KEYS.length + " scenes";
+        }
+        weatherScenesChoice.setText(getString(R.string.weather_scenes) + ": " + summary);
+    }
+
 }

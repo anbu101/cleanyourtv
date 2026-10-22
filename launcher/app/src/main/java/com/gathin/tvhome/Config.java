@@ -16,7 +16,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * The launcher's settings: the values in res/values/config.xml, with an optional overlay read from
@@ -54,6 +56,8 @@ final class Config {
     final boolean showHomeSettingsShortcut;
     /** Animated weather background toggle (SharedPreferences key: weather_bg). */
     final boolean weatherBg;
+    /** Which weather scenes are allowed; empty means all. (SharedPreferences key: weather_scenes, pipe-separated scene names) */
+    final Set<String> allowedWeatherScenes;
     /** Ticker mode: 0=off, 1=news, 2=cricket, 3=both (SharedPreferences key: ticker_mode). */
     final int tickerMode;
     /** Kids mode: only dock_apps are shown; Settings long-press requires PIN (SharedPreferences key: kids_mode). */
@@ -73,7 +77,7 @@ final class Config {
                    String sourcePanelService, String sourcePanelAction, String inputAction,
                    int columns, int rowsBelowDock, boolean animations, boolean advancedEffects,
                    boolean shamsiDate, boolean moduleCards, boolean reducedMotion, String vpnApp,
-                   boolean showHomeSettingsShortcut, boolean weatherBg, int tickerMode,
+                   boolean showHomeSettingsShortcut, boolean weatherBg, Set<String> allowedWeatherScenes, int tickerMode,
                    boolean kidsMode, boolean overlayClockEnabled,
                    int backgroundColor, int skyIntensity, File wallpaper, boolean overlayApplied) {
         this.dockApps = Collections.unmodifiableList(dockApps);
@@ -93,6 +97,7 @@ final class Config {
         this.vpnApp = vpnApp;
         this.showHomeSettingsShortcut = showHomeSettingsShortcut;
         this.weatherBg = weatherBg;
+        this.allowedWeatherScenes = Collections.unmodifiableSet(allowedWeatherScenes);
         this.tickerMode = tickerMode;
         this.kidsMode = kidsMode;
         this.overlayClockEnabled = overlayClockEnabled;
@@ -162,6 +167,11 @@ final class Config {
         animations = choices.getBoolean("animations", animations);
         advancedEffects = choices.getBoolean("advanced_effects", advancedEffects);
         boolean weatherBg          = choices.getBoolean("weather_bg",    false);
+        String weatherScenesStr    = choices.getString("weather_scenes", "");
+        Set<String> allowedScenes  = new HashSet<>();
+        if (!weatherScenesStr.isEmpty()) {
+            allowedScenes.addAll(Arrays.asList(weatherScenesStr.split("\\|", -1)));
+        }
         int tickerMode             = choices.getInt("ticker_mode",          0);
         boolean kidsMode           = choices.getBoolean("kids_mode",      false);
         boolean overlayClockEnabled = choices.getBoolean("overlay_clock", false);
@@ -201,7 +211,7 @@ final class Config {
 
         return new Config(dock, hidden, liveTv, liveTvAction, panelService, panelAction, inputAction,
                 Math.max(1, columns), Math.max(0, rowsBelow), animations, advancedEffects,
-                shamsi, moduleCards, reducedMotion, vpn, homeSettings, weatherBg,
+                shamsi, moduleCards, reducedMotion, vpn, homeSettings, weatherBg, allowedScenes,
                 tickerMode, kidsMode, overlayClockEnabled,
                 background, Math.max(0, Math.min(100, skyIntensity)), wallpaper, applied);
     }

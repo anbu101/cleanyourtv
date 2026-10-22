@@ -95,4 +95,13 @@
     <string name="weather_bg">Weather background</string>
     <string name="weather_bg_state">Weather background: %1$s</string>
     <string name="weather_bg_hint">Shows an animated scene (rain, snow, clear sky …) that matches your current weather. Fetches location from your public IP — no GPS needed.</string>
+    <string name="weather_scenes">Weather scenes</string>
+    <string name="weather_scenes_hint">Which weather conditions trigger the animated background. Conditions not in the list show the normal background.</string>
+    <string name="weather_scene_clear">Clear sky (day &amp; night)</string>
+    <string name="weather_scene_cloudy">Cloudy</string>
+    <string name="weather_scene_fog">Fog</string>
+    <string name="weather_scene_drizzle">Drizzle</string>
+    <string name="weather_scene_rain">Rain</string>
+    <string name="weather_scene_snow">Snow</string>
+    <string name="weather_scene_thunderstorm">Thunderstorm</string>
 </resources>
