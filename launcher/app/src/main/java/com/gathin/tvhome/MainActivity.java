@@ -538,6 +538,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         final String returnKey = lastFocusedKey;
         final int returnSlot = lastFocused;
         final List<Cards.Card> none = Collections.emptyList();
+        // Merge user-hidden extras (saved by the Hide option in the long-press menu) into the adapter.
+        String hiddenExtra = getSharedPreferences(Config.SETTINGS_NAME, MODE_PRIVATE).getString("hidden_extra", "");
+        java.util.List<String> extraList = hiddenExtra.isEmpty()
+                ? Collections.emptyList()
+                : java.util.Arrays.asList(hiddenExtra.split("\\|", -1));
+        adapter.setExtraHidden(extraList);
         cards = moduleCards ? CardFeature.run(() -> Cards.discover(this, hiddenApps, Cards.load(Cards.storeFile(this))), none) : none;
         adapter.reload(cards.isEmpty() ? none : CardFeature.run(() -> Cards.shown(cards), none));
         lastFocusedKey = returnKey;

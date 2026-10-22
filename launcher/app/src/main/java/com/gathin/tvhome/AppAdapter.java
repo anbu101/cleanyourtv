@@ -116,8 +116,10 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
     private final int dockSize;
     /** Dock order (config.xml dock_apps, or a theme's config.json). */
     private final List<String> favourites;
-    /** Never shown as tiles (res/values/config.xml, hidden_apps). */
-    private final Set<String> hidden;
+    /** Base hidden set from config (hidden_apps). Never changes after construction. */
+    private final Set<String> baseHidden;
+    /** Never shown as tiles: base hidden_apps + any user-hidden extras (hidden_extra pref). */
+    private Set<String> hidden;
     private final boolean animations;
     private final boolean advancedEffects;
     private final boolean showHomeSettings;
@@ -132,7 +134,8 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
         this.listener = listener;
         this.dockSize = dockSize;
         this.favourites = cfg.dockApps;
-        this.hidden = new HashSet<>(cfg.hiddenApps);
+        this.baseHidden = new HashSet<>(cfg.hiddenApps);
+        this.hidden = new HashSet<>(baseHidden);
         this.animations = cfg.animations;
         this.advancedEffects = cfg.animations && cfg.advancedEffects;
         this.showHomeSettings = cfg.showHomeSettingsShortcut;
@@ -141,6 +144,12 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
         // Tiles keep their identity across reload(), so a focused tile stays on its app instead of
         // its view being rebound to whatever app now sits in that slot.
         setHasStableIds(true);
+    }
+
+    /** Merges user-hidden extras (hidden_extra pref) into the hidden set for the next reload(). */
+    void setExtraHidden(java.util.Collection<String> extra) {
+        hidden = new HashSet<>(baseHidden);
+        hidden.addAll(extra);
     }
 
     /**
