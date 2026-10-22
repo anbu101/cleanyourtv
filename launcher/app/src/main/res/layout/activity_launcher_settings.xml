@@ -66,6 +66,15 @@
             style="@style/SettingsHint"
             android:text="@string/ticker_hint" />
 
+        <TextView
+            android:id="@+id/cricketChoice"
+            style="@style/SettingsRow"
+            android:layout_marginTop="8dp" />
+
+        <TextView
+            style="@style/SettingsHint"
+            android:text="@string/cricket_hint" />
+
         <!-- ════════════════════════════════════════
              LAYOUT
              ════════════════════════════════════════ -->

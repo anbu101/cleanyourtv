@@ -26,6 +26,8 @@ public final class LauncherSettingsActivity extends Activity {
     private TextView weatherBgChoice;
     private TextView weatherScenesChoice;
     private TextView tickerChoice;
+    private TextView cricketChoice;
+    private boolean cricketLiveScore;
     private TextView kidsModeChoice;
     private TextView overlayClockChoice;
     private int columns;
@@ -49,6 +51,7 @@ public final class LauncherSettingsActivity extends Activity {
         advancedEffects = config.animations && config.advancedEffects;
         weatherBg = config.weatherBg;
         tickerMode = config.tickerMode;
+        cricketLiveScore = config.cricketLiveScore;
         kidsMode = config.kidsMode;
         overlayClockEnabled = config.overlayClockEnabled;
 
@@ -102,8 +105,17 @@ public final class LauncherSettingsActivity extends Activity {
 
         tickerChoice = findViewById(R.id.tickerChoice);
         tickerChoice.setOnClickListener(v -> {
-            tickerMode = (tickerMode + 1) % 4;   // Off → News → Cricket → News+Cricket → Off
+            tickerMode = (tickerMode == TickerFetcher.MODE_OFF)
+                    ? TickerFetcher.MODE_NEWS : TickerFetcher.MODE_OFF;
             choices.edit().putInt("ticker_mode", tickerMode).apply();
+            setResult(RESULT_OK);
+            refresh();
+        });
+
+        cricketChoice = findViewById(R.id.cricketChoice);
+        cricketChoice.setOnClickListener(v -> {
+            cricketLiveScore = !cricketLiveScore;
+            choices.edit().putBoolean("cricket_live", cricketLiveScore).apply();
             setResult(RESULT_OK);
             refresh();
         });
@@ -201,9 +213,11 @@ public final class LauncherSettingsActivity extends Activity {
         weatherBgChoice.setText(getString(R.string.weather_bg_state,
                 getString(weatherBg ? R.string.on : R.string.off)));
         updateWeatherScenesLabel();
-        int[] tickerLabels = {R.string.ticker_mode_off, R.string.ticker_mode_news,
-                R.string.ticker_mode_cricket, R.string.ticker_mode_both};
-        tickerChoice.setText(getString(R.string.ticker_state, getString(tickerLabels[tickerMode])));
+        tickerChoice.setText(getString(R.string.ticker_state,
+                getString(tickerMode == TickerFetcher.MODE_OFF
+                        ? R.string.ticker_mode_off : R.string.ticker_mode_news)));
+        cricketChoice.setText(getString(R.string.cricket_state,
+                getString(cricketLiveScore ? R.string.on : R.string.off)));
         kidsModeChoice.setText(getString(R.string.kids_mode_state,
                 getString(kidsMode ? R.string.on : R.string.off)));
         overlayClockChoice.setText(getString(R.string.overlay_clock_state,

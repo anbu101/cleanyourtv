@@ -7,4 +7,5 @@
     android:accessibilityFlags="flagDefault"
     android:notificationTimeout="0"
     android:canPerformGestures="false"
-    android:canRetrieveWindowContent="true" />
+    android:canRetrieveWindowContent="true"
+    android:canTakeScreenshot="true" />

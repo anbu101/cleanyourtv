@@ -70,12 +70,14 @@
     <string name="card_state_new">New</string>
     <string name="card_state_new_key">New key</string>
     <string name="card_state_new_label">New name</string>
-    <string name="ticker_state">Ticker: %1$s</string>
-    <string name="ticker_hint">Scrolls live news headlines or cricket scores at the bottom. Cycles: Off → News → Cricket → News + Cricket.</string>
+    <string name="ticker_state">News ticker: %1$s</string>
+    <string name="ticker_hint">Scrolls news headlines at the bottom of the screen.</string>
     <string name="ticker_mode_off">Off</string>
-    <string name="ticker_mode_news">News</string>
+    <string name="ticker_mode_news">On</string>
     <string name="ticker_mode_cricket">Cricket</string>
     <string name="ticker_mode_both">News + Cricket</string>
+    <string name="cricket_state">Live cricket score: %1$s</string>
+    <string name="cricket_hint">Shows live match score in the top-right corner. Only appears when a match is in progress.</string>
     <string name="kids_mode_state">Kids mode: %1$s</string>
     <string name="kids_mode_hint">Shows only your curated dock apps. Requires a PIN to access settings.</string>
     <string name="kids_mode_set_pin">Set a 4-digit PIN to protect Kids Mode</string>

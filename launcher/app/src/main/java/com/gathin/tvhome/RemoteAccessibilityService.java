@@ -1,10 +1,14 @@
 package com.gathin.tvhome;
 
 import android.accessibilityservice.AccessibilityService;
+import android.graphics.Bitmap;
 import android.util.Log;
 import android.view.View;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
+
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Accessibility service used exclusively by the phone remote control.
@@ -88,6 +92,46 @@ public final class RemoteAccessibilityService extends AccessibilityService {
         } finally {
             root.recycle();
         }
+    }
+
+    /**
+     * Takes a screenshot of the default display and returns it as a software Bitmap.
+     * Uses the AccessibilityService.takeScreenshot() API (added in API 30).
+     * Blocks the calling thread (max 8 s) until the screenshot is ready.
+     * Returns null if the service is not connected or the capture fails.
+     */
+    public Bitmap captureScreenshot() {
+        CountDownLatch latch = new CountDownLatch(1);
+        Bitmap[] holder = new Bitmap[1];
+        try {
+            takeScreenshot(android.view.Display.DEFAULT_DISPLAY, getMainExecutor(),
+                    new TakeScreenshotCallback() {
+                        @Override
+                        public void onSuccess(ScreenshotResult result) {
+                            try {
+                                android.hardware.HardwareBuffer buf = result.getHardwareBuffer();
+                                Bitmap hw = Bitmap.wrapHardwareBuffer(buf, result.getColorSpace());
+                                if (hw != null) {
+                                    holder[0] = hw.copy(Bitmap.Config.ARGB_8888, false);
+                                    hw.recycle();
+                                }
+                                buf.close();
+                            } catch (Throwable t) {
+                                Log.w(TAG, "screenshot convert: " + t.getMessage());
+                            }
+                            latch.countDown();
+                        }
+                        @Override
+                        public void onFailure(int errorCode) {
+                            Log.w(TAG, "takeScreenshot failure: " + errorCode);
+                            latch.countDown();
+                        }
+                    });
+            latch.await(8, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            Log.w(TAG, "captureScreenshot: " + e.getMessage());
+        }
+        return holder[0];
     }
 
     /**

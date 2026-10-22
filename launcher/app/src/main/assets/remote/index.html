@@ -236,6 +236,14 @@
       color:var(--text);font-size:13px;padding:0 12px;outline:none;}
     .tv-add-btn{height:38px;padding:0 14px;background:linear-gradient(145deg,#5dc97d,#3a9a57);
       border-radius:10px;border:none;color:#fff;font-size:13px;font-weight:700;cursor:pointer;}
+    /* Screenshot viewer */
+    #viewer{display:none;position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:200;
+      flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:20px;}
+    #viewer.open{display:flex;}
+    #viewer img,#viewer video{max-width:100%;max-height:72vh;border-radius:10px;}
+    #viewer-hint{font-size:12px;color:rgba(255,255,255,.4);text-align:center;}
+    #viewer-close{padding:8px 28px;background:var(--surface);border:1px solid var(--border);
+      border-radius:20px;color:var(--text);font-size:13px;font-weight:600;cursor:pointer;}
     /* Toast */
     #toast{position:fixed;bottom:calc(env(safe-area-inset-bottom)+24px);left:50%;
       transform:translateX(-50%) translateY(64px);
@@ -401,6 +409,12 @@
     <button class="nav-btn btn3d" onclick="hlaunch('settings://tv')">
       <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings
     </button>
+    <button class="nav-btn btn3d" id="ss-btn" title="Tap: screenshot · Hold: 3s record">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+        <circle cx="12" cy="13" r="4"/>
+      </svg>
+    </button>
   </div>
 
   <!-- Media -->
@@ -450,6 +464,17 @@
   <!-- Upload progress (hidden until a file is uploading) -->
   <div class="cast-prog" id="cast-prog"><div class="cast-prog-fill" id="cast-prog-fill"></div></div>
   <input type="file" id="cast-input" accept="image/*,video/*" style="display:none" onchange="onCastFile(this)">
+
+  <!-- Screenshot / recording viewer -->
+  <div id="viewer">
+    <img id="viewer-img" style="display:none" alt="TV screenshot"/>
+    <video id="viewer-vid" style="display:none" autoplay playsinline controls></video>
+    <p id="viewer-hint"></p>
+    <div style="display:flex;gap:12px">
+      <button id="viewer-save" onclick="saveViewer()" style="padding:8px 28px;background:var(--surface);border:1px solid var(--border);color:#fff;border-radius:10px;font-size:15px">Save</button>
+      <button id="viewer-close" onclick="closeViewer()">Close</button>
+    </div>
+  </div>
 
   <!-- TV switcher modal -->
   <div class="tv-modal" id="tv-modal" onclick="if(event.target===this)closeTvModal()">
@@ -854,6 +879,109 @@
       sr.onend = function(){ btn.classList.remove('listening'); };
       sr.start();
     }
+
+    // ── Screenshot / record ───────────────────────────────────────────────────
+    (function(){
+      var btn = document.getElementById('ss-btn');
+      var blobUrl = null, timer = null, savedBlob = null;
+
+      function startPress(){ timer = setTimeout(function(){ timer=null; doRecord(); if(navigator.vibrate) navigator.vibrate([40,60,80]); }, 600); }
+      function clearTimer(){ if(timer){ clearTimeout(timer); timer=null; return true; } return false; }
+
+      btn.addEventListener('touchstart', function(e){ e.preventDefault(); haptic(); startPress(); },{passive:false});
+      btn.addEventListener('touchend',   function(e){ e.preventDefault(); if(clearTimer()) doScreenshot(); },{passive:false});
+      btn.addEventListener('touchcancel',function(){ clearTimer(); });
+      btn.addEventListener('mousedown',  startPress);
+      btn.addEventListener('mouseup',    function(){ if(clearTimer()) doScreenshot(); });
+      btn.addEventListener('mouseleave', clearTimer);
+      btn.addEventListener('click',      function(e){ e.stopPropagation(); });
+
+      function setBusy(busy, rec){
+        btn.style.opacity = busy ? '0.45' : '';
+        btn.style.color   = (busy && rec) ? 'var(--red)' : '';
+      }
+
+
+
+      async function doScreenshot(){
+        setBusy(true, false); toast('Taking screenshot…');
+        try{
+          var r = await fetch('/api/screenshot');
+          if(!r.ok){
+            var err = ''; try{ err = (await r.json()).error||''; }catch(e){}
+            toast(err || 'Screenshot failed'); return;
+          }
+          showViewer(await r.blob());
+        }catch(e){ toast(e.message||'Screenshot failed'); }
+        finally{ setBusy(false, false); }
+      }
+
+      async function doRecord(){
+        setBusy(true, true); toast('Recording 3 s…');
+        try{
+          var r = await fetch('/api/record');
+          if(r.status === 202){
+            toast('Press OK to approve recording on TV');
+            await new Promise(function(w){ setTimeout(w, 4000); });
+            toast('Recording 3 s…');
+            r = await fetch('/api/record');
+          }
+          if(!r.ok){
+            var err = ''; try{ err = (await r.json()).error||''; }catch(e){}
+            toast(err || 'Recording failed'); return;
+          }
+          showVideoViewer(await r.blob());
+        }catch(e){ toast(e.message||'Recording failed'); }
+        finally{ setBusy(false, false); }
+      }
+
+      function showViewer(blob){
+        if(blobUrl) URL.revokeObjectURL(blobUrl);
+        savedBlob = blob;
+        blobUrl = URL.createObjectURL(blob);
+        var img = document.getElementById('viewer-img');
+        document.getElementById('viewer-vid').style.display='none';
+        img.style.display=''; img.src = blobUrl;
+        document.getElementById('viewer-hint').textContent = '';
+        document.getElementById('viewer').classList.add('open');
+      }
+
+      function showVideoViewer(blob){
+        if(blobUrl) URL.revokeObjectURL(blobUrl);
+        savedBlob = blob;
+        blobUrl = URL.createObjectURL(blob);
+        var vid = document.getElementById('viewer-vid');
+        var img = document.getElementById('viewer-img');
+        img.style.display='none'; vid.style.display='';
+        vid.src = blobUrl;
+        document.getElementById('viewer-hint').textContent = '';
+        document.getElementById('viewer').classList.add('open');
+      }
+
+
+
+      window.saveViewer = function(){
+        if(!savedBlob) return;
+        var isVideo = savedBlob.type.startsWith('video');
+        var ext = isVideo ? '.mp4' : '.jpg';
+        var fname = 'TV-' + new Date().toISOString().replace(/[:.]/g,'-').slice(0,19) + ext;
+        var file = new File([savedBlob], fname, {type: savedBlob.type});
+        if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+          navigator.share({files:[file]}).catch(function(){});
+        } else {
+          var a = document.createElement('a'); a.href = blobUrl; a.download = fname;
+          a.click();
+        }
+      };
+
+      window.closeViewer = function(){
+        var vid = document.getElementById('viewer-vid');
+        vid.pause(); vid.src = '';
+        document.getElementById('viewer').classList.remove('open');
+        if(blobUrl){ URL.revokeObjectURL(blobUrl); blobUrl=null; }
+        savedBlob = null;
+      };
+    })();
 
     // ── Init ──────────────────────────────────────────────────────────────────
     poll();initVolume();syncSleepState();setInterval(poll,15000);

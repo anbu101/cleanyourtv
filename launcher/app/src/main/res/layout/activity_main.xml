@@ -158,6 +158,20 @@
                             android:letterSpacing="0.06"
                             android:singleLine="true"
                             android:visibility="gone" />
+
+                        <!-- Screen time: "2h 40m today · 50h 1m this week" -->
+                        <TextView
+                            android:id="@+id/screenTime"
+                            android:gravity="left"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="3dp"
+                            android:textColor="#66FFFFFF"
+                            android:textSize="11sp"
+                            android:fontFamily="@font/outfit_regular"
+                            android:letterSpacing="0.04"
+                            android:singleLine="true"
+                            android:visibility="gone" />
                     </LinearLayout>
                 </LinearLayout>
 
@@ -196,6 +210,21 @@
                     android:drawableStart="@drawable/ic_settings"
                     android:nextFocusDown="@+id/grid" />
             </LinearLayout>
+
+            <!-- Live cricket score badge: "● LIVE ODI · IND 185/4 v AUS 120/3" -->
+            <TextView
+                android:id="@+id/cricketBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentEnd="true"
+                android:layout_below="@+id/topButtons"
+                android:layout_marginTop="5dp"
+                android:textSize="12sp"
+                android:fontFamily="@font/outfit_regular"
+                android:letterSpacing="0.02"
+                android:singleLine="true"
+                android:visibility="gone"
+                android:importantForAccessibility="no" />
         </RelativeLayout>
 
         <!-- The wrapper clips at the grid's edge; the grid itself must not clip so scaled tiles can overflow their cells. -->

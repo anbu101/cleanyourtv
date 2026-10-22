@@ -136,7 +136,7 @@
         <service
             android:name=".RemoteService"
             android:exported="false"
-            android:foregroundServiceType="dataSync" />
+            android:foregroundServiceType="dataSync|mediaProjection" />
 
         <!-- FileProvider: lets the cast endpoint share saved photos/videos with media players. -->
         <provider

@@ -77,6 +77,13 @@ import java.util.Set;
 public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     private static final int LAUNCHER_SETTINGS_REQUEST = 42;
+    private static final int REQUEST_MEDIA_PROJECTION  = 1002;
+
+    /** Set in onCreate, cleared in onDestroy. Used by RemoteService. */
+    public static volatile MainActivity instance;
+    /** Stored MediaProjection grant — reusable for multiple recordings until process dies. */
+    public static volatile int    projResultCode;
+    public static volatile Intent projResultData;
     /** Tiles per row and dock slots (res/values/config.xml, columns). Set in onCreate. */
     static int COLUMNS = 4;
     private boolean rtlAppGrid;
@@ -108,6 +115,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private WeatherFetcher weatherFetcher;
     private TickerView tickerView;
     private TickerFetcher tickerFetcher;
+    private android.widget.TextView cricketBadge;
+    private CricketFetcher cricketFetcher;
+    private android.widget.TextView screenTimeView;
     private boolean kidsMode;
     private String vpnApp;
     private SpringAnimation springX, springY;
@@ -192,6 +202,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             updateGreeting();
             updateWifiLabel();
             sky.update();
+            updateScreenTime();
             handler.postDelayed(this, MINUTE_MS);
         }
     };
@@ -199,6 +210,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        instance = this;
         setContentView(R.layout.activity_main);
         density = getResources().getDisplayMetrics().density;
         // config.xml, overlaid by config.json from a pushed theme (see Config and tools/theme.sh).
@@ -259,14 +271,29 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         moduleCards = cfg.moduleCards;
         hiddenApps = new HashSet<>(cfg.hiddenApps);
 
-        // Ticker
+        // Ticker (news only — cricket mode replaced by live score badge)
         tickerView = findViewById(R.id.ticker);
-        if (cfg.tickerMode != TickerFetcher.MODE_OFF) {
+        if (cfg.tickerMode == TickerFetcher.MODE_NEWS) {
             tickerFetcher = new TickerFetcher(headline -> {
                 tickerView.setText(headline);
                 tickerView.setOnCycleComplete(() -> tickerFetcher.next());
             });
-            tickerFetcher.start(cfg.tickerMode);
+            tickerFetcher.start(TickerFetcher.MODE_NEWS);
+        }
+
+        // Live cricket score badge
+        cricketBadge = findViewById(R.id.cricketBadge);
+        screenTimeView = findViewById(R.id.screenTime);
+        if (cfg.cricketLiveScore) {
+            cricketFetcher = new CricketFetcher(score -> {
+                if (score != null) {
+                    cricketBadge.setText(score);
+                    cricketBadge.setVisibility(android.view.View.VISIBLE);
+                } else {
+                    cricketBadge.setVisibility(android.view.View.GONE);
+                }
+            });
+            cricketFetcher.start();
         }
 
         // Overlay clock — start service if enabled and permission granted
@@ -492,6 +519,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         updateWifiLabel();
         updateInputsButton();
         sky.update();
+        updateScreenTime();
         handler.postDelayed(minuteTick, MINUTE_MS);
     }
 
@@ -499,6 +527,19 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == LAUNCHER_SETTINGS_REQUEST && resultCode == RESULT_OK) recreate();
+        if (requestCode == REQUEST_MEDIA_PROJECTION) {
+            if (resultCode == RESULT_OK && data != null) {
+                projResultCode = resultCode;
+                projResultData = data;
+            }
+        }
+    }
+
+    /** Starts the system screen-capture permission dialog. Called from RemoteService. */
+    public void requestMediaProjection() {
+        android.media.projection.MediaProjectionManager mpm =
+                (android.media.projection.MediaProjectionManager) getSystemService(MEDIA_PROJECTION_SERVICE);
+        startActivityForResult(mpm.createScreenCaptureIntent(), REQUEST_MEDIA_PROJECTION);
     }
 
     /** Rebuilds the tiles (and the module cards), then puts focus back where it was. */
@@ -586,6 +627,19 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         super.onStop();
         unregisterReceiver(packageReceiver);
         rebuildOnResume = true;
+    }
+
+    private void updateScreenTime() {
+        if (screenTimeView == null) return;
+        ScreenTimeTracker tracker = ScreenTimeTracker.instance;
+        if (tracker == null) return;
+        String text = tracker.getDisplayText();
+        if (text != null) {
+            screenTimeView.setText(text);
+            screenTimeView.setVisibility(android.view.View.VISIBLE);
+        } else {
+            screenTimeView.setVisibility(android.view.View.GONE);
+        }
     }
 
     @Override

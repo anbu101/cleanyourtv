@@ -58,8 +58,10 @@ final class Config {
     final boolean weatherBg;
     /** Which weather scenes are allowed; empty means all. (SharedPreferences key: weather_scenes, pipe-separated scene names) */
     final Set<String> allowedWeatherScenes;
-    /** Ticker mode: 0=off, 1=news, 2=cricket, 3=both (SharedPreferences key: ticker_mode). */
+    /** Ticker mode: 0=off, 1=news (SharedPreferences key: ticker_mode). */
     final int tickerMode;
+    /** Show live cricket score badge (SharedPreferences key: cricket_live). */
+    final boolean cricketLiveScore;
     /** Kids mode: only dock_apps are shown; Settings long-press requires PIN (SharedPreferences key: kids_mode). */
     final boolean kidsMode;
     /** Floating clock overlay visible over all apps (SharedPreferences key: overlay_clock). */
@@ -78,7 +80,7 @@ final class Config {
                    int columns, int rowsBelowDock, boolean animations, boolean advancedEffects,
                    boolean shamsiDate, boolean moduleCards, boolean reducedMotion, String vpnApp,
                    boolean showHomeSettingsShortcut, boolean weatherBg, Set<String> allowedWeatherScenes, int tickerMode,
-                   boolean kidsMode, boolean overlayClockEnabled,
+                   boolean cricketLiveScore, boolean kidsMode, boolean overlayClockEnabled,
                    int backgroundColor, int skyIntensity, File wallpaper, boolean overlayApplied) {
         this.dockApps = Collections.unmodifiableList(dockApps);
         this.hiddenApps = Collections.unmodifiableList(hiddenApps);
@@ -99,6 +101,7 @@ final class Config {
         this.weatherBg = weatherBg;
         this.allowedWeatherScenes = Collections.unmodifiableSet(allowedWeatherScenes);
         this.tickerMode = tickerMode;
+        this.cricketLiveScore = cricketLiveScore;
         this.kidsMode = kidsMode;
         this.overlayClockEnabled = overlayClockEnabled;
         this.backgroundColor = backgroundColor;
@@ -173,6 +176,7 @@ final class Config {
             allowedScenes.addAll(Arrays.asList(weatherScenesStr.split("\\|", -1)));
         }
         int tickerMode             = choices.getInt("ticker_mode",          0);
+        boolean cricketLiveScore   = choices.getBoolean("cricket_live",   false);
         boolean kidsMode           = choices.getBoolean("kids_mode",      false);
         boolean overlayClockEnabled = choices.getBoolean("overlay_clock", false);
 
@@ -212,7 +216,7 @@ final class Config {
         return new Config(dock, hidden, liveTv, liveTvAction, panelService, panelAction, inputAction,
                 Math.max(1, columns), Math.max(0, rowsBelow), animations, advancedEffects,
                 shamsi, moduleCards, reducedMotion, vpn, homeSettings, weatherBg, allowedScenes,
-                tickerMode, kidsMode, overlayClockEnabled,
+                tickerMode, cricketLiveScore, kidsMode, overlayClockEnabled,
                 background, Math.max(0, Math.min(100, skyIntensity)), wallpaper, applied);
     }
 

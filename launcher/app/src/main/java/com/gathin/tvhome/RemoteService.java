@@ -1,6 +1,8 @@
 package com.gathin.tvhome;
 
 import android.app.Notification;
+import android.content.BroadcastReceiver;
+import android.content.IntentFilter;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
@@ -14,8 +16,16 @@ import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
 
+import android.graphics.Bitmap;
+import android.hardware.display.DisplayManager;
+import android.hardware.display.VirtualDisplay;
+import android.media.MediaRecorder;
+import android.media.projection.MediaProjection;
+import android.media.projection.MediaProjectionManager;
+
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -47,6 +57,8 @@ public final class RemoteService extends Service {
     private final android.os.Handler sleepHandler = new android.os.Handler(android.os.Looper.getMainLooper());
     private Runnable sleepRunnable;
     private long sleepEndMs = 0;
+    private ScreenTimeTracker screenTracker;
+    private BroadcastReceiver screenReceiver;
 
     /** Static flag so MainActivity can avoid starting a second copy. */
     public static volatile boolean running = false;
@@ -85,12 +97,28 @@ public final class RemoteService extends Service {
         startForeground(42, buildNotification());
         startHttpServer();
         running = true;
+        // Screen-time tracking
+        screenTracker = new ScreenTimeTracker(this);
+        ScreenTimeTracker.instance = screenTracker;
+        screenTracker.screenOn(); // service starts = screen is on
+        screenReceiver = new BroadcastReceiver() {
+            @Override public void onReceive(android.content.Context ctx, android.content.Intent intent) {
+                if (Intent.ACTION_SCREEN_ON.equals(intent.getAction()))  screenTracker.screenOn();
+                else if (Intent.ACTION_SCREEN_OFF.equals(intent.getAction())) screenTracker.screenOff();
+            }
+        };
+        IntentFilter sf = new IntentFilter();
+        sf.addAction(Intent.ACTION_SCREEN_ON);
+        sf.addAction(Intent.ACTION_SCREEN_OFF);
+        registerReceiver(screenReceiver, sf);
     }
 
     @Override
     public void onDestroy() {
         running = false;
         stopHttpServer();
+        if (screenReceiver != null) { try { unregisterReceiver(screenReceiver); } catch (Exception ignored) {} }
+        if (screenTracker != null) { screenTracker.screenOff(); ScreenTimeTracker.instance = null; }
         super.onDestroy();
     }
 
@@ -126,7 +154,7 @@ public final class RemoteService extends Service {
 
     private void handleClient(Socket client) {
         try (Socket s = client) {
-            s.setSoTimeout(30000); // 30 s; file uploads need more than the old 8 s
+            s.setSoTimeout(60000); // 60 s; screen recording takes ~4 s + transfer time
             InputStream rawIn = s.getInputStream();
             OutputStream out  = s.getOutputStream();
 
@@ -314,6 +342,62 @@ public final class RemoteService extends Service {
                 sleepHandler.postDelayed(sleepRunnable, minutes * 60_000L);
             }
             respond(out, 200, "application/json", "{\"ok\":true}".getBytes());
+            return;
+        }
+
+        // GET /api/screenshot — capture current screen via AccessibilityService
+        if ("GET".equals(method) && "/api/screenshot".equals(path)) {
+            RemoteAccessibilityService a11y = RemoteAccessibilityService.instance;
+            if (a11y == null) {
+                respond(out, 503, "application/json",
+                        "{\"error\":\"Enable TV Remote Navigation in Accessibility settings\"}".getBytes());
+                return;
+            }
+            android.graphics.Bitmap bmp = a11y.captureScreenshot();
+            if (bmp == null) {
+                respond(out, 500, "application/json",
+                        "{\"error\":\"screenshot failed\"}".getBytes());
+                return;
+            }
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 88, baos);
+            bmp.recycle();
+            respond(out, 200, "image/jpeg", baos.toByteArray());
+            return;
+        }
+
+        // GET /api/record — 3 s screen recording via MediaProjection
+        if ("GET".equals(method) && "/api/record".equals(path)) {
+            if (MainActivity.projResultData == null) {
+                // Need one-time user approval; trigger the system dialog on the TV
+                MainActivity ma = MainActivity.instance;
+                if (ma != null) {
+                    new android.os.Handler(android.os.Looper.getMainLooper()).post(
+                            () -> ma.requestMediaProjection());
+                    respond(out, 202, "application/json",
+                            "{\"status\":\"approve\",\"message\":\"Press OK to approve recording on TV\"}".getBytes());
+                } else {
+                    respond(out, 503, "application/json",
+                            "{\"error\":\"App not ready\"}".getBytes());
+                }
+                return;
+            }
+            File tmp = new File(getCacheDir(), "cytvtmp.mp4");
+            try {
+                recordScreen(tmp, 3);
+                try (FileInputStream fis = new FileInputStream(tmp)) {
+                    byte[] data = readAll(fis);
+                    respond(out, 200, "video/mp4", data);
+                }
+            } catch (Exception e) {
+                Log.w(TAG, "record: " + e.getMessage(), e);
+                // If projection token is stale, clear it so next attempt re-asks
+                MainActivity.projResultData = null;
+                respond(out, 500, "application/json",
+                        "{\"error\":\"record failed\"}".getBytes());
+            } finally {
+                tmp.delete();
+            }
             return;
         }
 
@@ -635,15 +719,53 @@ public final class RemoteService extends Service {
         }
     }
 
+    // ── Screen recording (MediaProjection + MediaRecorder) ─────────────────
+
+    private void recordScreen(File output, int durationSec) throws Exception {
+        MediaProjectionManager mpm =
+                (MediaProjectionManager) getSystemService(MEDIA_PROJECTION_SERVICE);
+        MediaProjection projection = mpm.getMediaProjection(
+                MainActivity.projResultCode, MainActivity.projResultData);
+        if (projection == null) throw new Exception("projection unavailable");
+
+        MediaRecorder recorder = new MediaRecorder();
+        recorder.setVideoSource(MediaRecorder.VideoSource.SURFACE);
+        recorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
+        recorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
+        recorder.setVideoSize(1280, 720);
+        recorder.setVideoFrameRate(24);
+        recorder.setVideoEncodingBitRate(3_000_000);
+        recorder.setOutputFile(output.getAbsolutePath());
+        recorder.prepare();
+
+        VirtualDisplay vd = projection.createVirtualDisplay("cytvrecord",
+                1280, 720, 160,
+                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                recorder.getSurface(), null, null);
+        try {
+            recorder.start();
+            Log.i(TAG, "recording started (" + durationSec + " s)");
+            Thread.sleep(durationSec * 1000L);
+            recorder.stop();
+            Log.i(TAG, "recording stopped, file=" + output.length() + " bytes");
+        } finally {
+            recorder.release();
+            vd.release();
+            projection.stop();
+        }
+    }
+
     // ── HTTP helpers ──────────────────────────────────────────────────────────
 
     private static void respond(OutputStream out, int status, String mime, byte[] body)
             throws IOException {
         String phrase = status == 200 ? "OK"
+                      : status == 202 ? "Accepted"
                       : status == 204 ? "No Content"
                       : status == 400 ? "Bad Request"
                       : status == 404 ? "Not Found"
                       : status == 500 ? "Internal Server Error"
+                      : status == 503 ? "Service Unavailable"
                       : "Error";
         StringBuilder h = new StringBuilder();
         h.append("HTTP/1.1 ").append(status).append(' ').append(phrase).append("\r\n");
