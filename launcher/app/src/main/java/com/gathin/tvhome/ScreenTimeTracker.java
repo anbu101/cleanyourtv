@@ -29,6 +29,9 @@ public final class ScreenTimeTracker {
     // "today" lives in KEY_TODAY; on day-roll it becomes day_0 and day_0 → day_1 etc.
     private static final int    HISTORY     = 6;   // days of history (+ today = 7 total)
 
+    /** Maximum plausible screen-on time per day: 24 hours. */
+    private static final long   MAX_DAY_MS  = 24L * 60 * 60 * 1000;
+
     private static final SimpleDateFormat DATE_FMT =
             new SimpleDateFormat("yyyy-MM-dd", Locale.US);
 
@@ -46,9 +49,11 @@ public final class ScreenTimeTracker {
     /** Display turned on. */
     public synchronized void screenOn() {
         rollIfNewDay();
-        if (prefs.getLong(KEY_SESSION, 0) == 0) {
-            prefs.edit().putLong(KEY_SESSION, System.currentTimeMillis()).apply();
-        }
+        // Always reset session_start to now.  If the process was killed without
+        // screenOff() (crash, APK install), the old session_start is stale and
+        // would produce a bogus elapsed time.  We lose a few seconds of accuracy
+        // on normal SCREEN_ON, but avoid multi-hour/multi-day corruption.
+        prefs.edit().putLong(KEY_SESSION, System.currentTimeMillis()).apply();
     }
 
     /** Display turned off — flushes the current session into today's bucket. */
@@ -56,7 +61,7 @@ public final class ScreenTimeTracker {
         rollIfNewDay();
         long start = prefs.getLong(KEY_SESSION, 0);
         if (start == 0) return;
-        long elapsed = System.currentTimeMillis() - start;
+        long elapsed = Math.max(0, Math.min(System.currentTimeMillis() - start, MAX_DAY_MS));
         prefs.edit()
              .putLong(KEY_TODAY, prefs.getLong(KEY_TODAY, 0) + elapsed)
              .putLong(KEY_SESSION, 0)
@@ -71,13 +76,17 @@ public final class ScreenTimeTracker {
         rollIfNewDay();
         long sessionMs = 0;
         long sessionStart = prefs.getLong(KEY_SESSION, 0);
-        if (sessionStart > 0) sessionMs = System.currentTimeMillis() - sessionStart;
+        if (sessionStart > 0) sessionMs = Math.max(0,
+                Math.min(System.currentTimeMillis() - sessionStart, MAX_DAY_MS));
 
         long todayMs = prefs.getLong(KEY_TODAY, 0) + sessionMs;
         if (todayMs < 60_000L) return null;
 
         long weekMs = todayMs;
-        for (int i = 0; i < HISTORY; i++) weekMs += prefs.getLong("day_" + i, 0);
+        for (int i = 0; i < HISTORY; i++) {
+            long day = prefs.getLong("day_" + i, 0);
+            if (day > 0 && day <= MAX_DAY_MS) weekMs += day;  // skip corrupted entries
+        }
 
         return fmt(todayMs) + " today  ·  " + fmt(weekMs) + " this week";
     }
@@ -90,16 +99,21 @@ public final class ScreenTimeTracker {
         if (today.equals(stored)) return;
 
         SharedPreferences.Editor ed = prefs.edit();
-        // Close any open session into yesterday's accumulator
         long sessionStart = prefs.getLong(KEY_SESSION, 0);
         long oldToday = prefs.getLong(KEY_TODAY, 0);
         if (sessionStart > 0) {
-            oldToday += System.currentTimeMillis() - sessionStart;
+            // Cap the stale session to at most 24h to prevent corruption when the
+            // process was killed without screenOff() (crash, APK install, force-stop).
+            long elapsed = Math.max(0, Math.min(System.currentTimeMillis() - sessionStart, MAX_DAY_MS));
+            oldToday += elapsed;
             ed.putLong(KEY_SESSION, System.currentTimeMillis()); // start new session
         }
+        // Cap today's total to 24h
+        oldToday = Math.max(0, Math.min(oldToday, MAX_DAY_MS));
         // Rotate history buckets: day_5=day_4 … day_0=oldToday
         for (int i = HISTORY - 1; i > 0; i--) {
-            ed.putLong("day_" + i, prefs.getLong("day_" + (i - 1), 0));
+            long prev = prefs.getLong("day_" + (i - 1), 0);
+            ed.putLong("day_" + i, Math.max(0, Math.min(prev, MAX_DAY_MS)));
         }
         ed.putLong("day_0", oldToday);
         ed.putLong(KEY_TODAY, 0);
