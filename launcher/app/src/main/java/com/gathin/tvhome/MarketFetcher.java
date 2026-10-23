@@ -5,6 +5,9 @@ import android.os.Looper;
 import android.text.Html;
 import android.util.Log;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
@@ -13,17 +16,15 @@ import java.util.Calendar;
 import java.util.TimeZone;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
- * Fetches Nifty 50, Bank Nifty and Sensex quotes from Google Finance (HTML scraping).
+ * Fetches Nifty 50 and Bank Nifty quotes from the NSE India API.
  * Polls every 15 s during market hours (9:15–15:30 IST, Mon–Fri),
  * every 10 minutes outside.
  *
  * Delivers a coloured CharSequence on the main thread, e.g.:
- *   NIFTY 24,180 ▲0.54%  ·  BANKNIFTY 51,200 ▼0.09%  ·  SENSEX 79,500 ▲0.62%
- * Returns null when all three fetches fail.
+ *   NIFTY 24,180 ▲0.54%  ·  BANKNIFTY 51,200 ▼1.16%
+ * Returns null when the fetch fails.
  */
 public final class MarketFetcher {
 
@@ -36,17 +37,11 @@ public final class MarketFetcher {
     private static final long   POLL_IDLE_MS   = 10 * 60_000L; // 10 min outside hours
     private static final int    TIMEOUT_MS     = 10_000;
 
-    private static final String[] URLS = {
-        "https://www.google.com/finance/quote/NIFTY_50:INDEXNSE",
-        "https://www.google.com/finance/quote/NIFTY_BANK:INDEXNSE",
+    private static final String API_URL = "https://www.nseindia.com/api/allIndices";
+    private static final String[][] INDICES = {
+        { "NIFTY 50",    "NIFTY" },
+        { "NIFTY BANK",  "BANKNIFTY" },
     };
-    private static final String[] LABELS = { "NIFTY", "BANKNIFTY" };
-
-    // Hero section: first match on the page is the main quote
-    private static final Pattern PAT_PRICE = Pattern.compile(
-            "jsname=\"Pdsbrc\"[^>]*><span>([0-9,]+(?:\\.[0-9]+)?)</span>");
-    private static final Pattern PAT_PCT   = Pattern.compile(
-            "jsname=\"vY9t3b\"[^>]*><span[^>]*>([^<]+)</span>");
 
     private final Handler         mainHandler = new Handler(Looper.getMainLooper());
     private final ExecutorService executor    = Executors.newSingleThreadExecutor(r -> {
@@ -91,35 +86,55 @@ public final class MarketFetcher {
     // ── Fetching ─────────────────────────────────────────────────────────────
 
     private CharSequence fetchAll() {
-        StringBuilder html = new StringBuilder();
-        int ok = 0;
-        for (int i = 0; i < URLS.length; i++) {
-            try {
-                String page = fetch(URLS[i]);
-                String price = extract(PAT_PRICE, page);
-                String pct   = extract(PAT_PCT,   page);
-                if (price == null || pct == null) continue;
+        try {
+            String json = fetch(API_URL);
+            if (json == null) return null;
+            JSONArray data = new JSONObject(json).getJSONArray("data");
 
-                // Drop decimals from price for compact display
-                int dot = price.indexOf('.');
-                if (dot > 0) price = price.substring(0, dot);
+            StringBuilder html = new StringBuilder();
+            int ok = 0;
+            for (String[] entry : INDICES) {
+                String indexName = entry[0];
+                String label = entry[1];
+                for (int i = 0; i < data.length(); i++) {
+                    JSONObject obj = data.getJSONObject(i);
+                    if (!indexName.equals(obj.optString("index"))) continue;
 
-                boolean negative = pct.trim().startsWith("-");
-                String arrow = negative ? "▼" : "▲";
-                String color = negative ? "#F44336" : "#4CAF50";
+                    double last = obj.optDouble("last", 0);
+                    double pctChange = obj.optDouble("percentChange", 0);
+                    if (last == 0) break;
 
-                if (html.length() > 0) html.append("    <font color='#55FFFFFF'>·</font>    ");
-                html.append("<font color='#B3FFFFFF'>").append(LABELS[i]).append(" ")
-                    .append(price).append("</font> ")
-                    .append("<font color='").append(color).append("'>")
-                    .append(arrow).append(pct.trim()).append("</font>");
-                ok++;
-            } catch (Exception e) {
-                Log.d(TAG, LABELS[i] + ": " + e.getMessage());
+                    String price = formatPrice(last);
+                    String pct = String.format("%.2f%%", Math.abs(pctChange));
+                    boolean negative = pctChange < 0;
+                    String arrow = negative ? "▼" : "▲";
+                    String color = negative ? "#F44336" : "#4CAF50";
+
+                    if (html.length() > 0) html.append("    <font color='#55FFFFFF'>·</font>    ");
+                    html.append("<font color='#B3FFFFFF'>").append(label).append(" ")
+                        .append(price).append("</font> ")
+                        .append("<font color='").append(color).append("'>")
+                        .append(arrow).append(pct).append("</font>");
+                    ok++;
+                    break;
+                }
             }
+            if (ok == 0) return null;
+            return Html.fromHtml(html.toString(), Html.FROM_HTML_MODE_COMPACT);
+        } catch (Exception e) {
+            Log.d(TAG, "fetch: " + e.getMessage());
+            return null;
         }
-        if (ok == 0) return null;
-        return Html.fromHtml(html.toString(), Html.FROM_HTML_MODE_COMPACT);
+    }
+
+    /** Formats a price like 24862.3 → "24,862" (no decimals, with comma grouping). */
+    private static String formatPrice(double price) {
+        long whole = (long) price;
+        StringBuilder sb = new StringBuilder(Long.toString(whole));
+        for (int i = sb.length() - 3; i > 0; i -= 2) {
+            sb.insert(i, ',');
+        }
+        return sb.toString();
     }
 
     private static String fetch(String urlStr) throws Exception {
@@ -141,11 +156,6 @@ public final class MarketFetcher {
         } finally {
             conn.disconnect();
         }
-    }
-
-    private static String extract(Pattern p, String html) {
-        Matcher m = p.matcher(html);
-        return m.find() ? m.group(1) : null;
     }
 
     /** True during NSE/BSE trading hours: 9:15–15:30 IST, Monday–Friday. */
