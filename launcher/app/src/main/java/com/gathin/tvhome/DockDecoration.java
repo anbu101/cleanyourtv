@@ -9,7 +9,10 @@ import android.view.View;
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
-/** Draws the tvOS style lighter band behind the first (dock) row and adds a gap below it. */
+/**
+ * Draws the tvOS style lighter band behind the first (dock) row and adds a gap below it.
+ * Opacity is user-controllable from 0 (invisible) to 100 (fully opaque).
+ */
 public class DockDecoration extends RecyclerView.ItemDecoration {
 
     private final int dockSize;
@@ -21,10 +24,17 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
     DockDecoration(int dockSize, float density) {
         this.dockSize = dockSize;
         this.density = density;
-        band.setColor(0xFF141416);
         edge.setStyle(Paint.Style.STROKE);
         edge.setStrokeWidth(density);
-        edge.setColor(0x1FFFFFFF);
+        setOpacity(100);
+    }
+
+    /** @param percent 0 = invisible, 100 = fully opaque (#FF141416). */
+    void setOpacity(int percent) {
+        int alpha = Math.round(percent * 255 / 100f);
+        band.setColor((alpha << 24) | 0x141416);
+        int edgeAlpha = Math.round(percent * 0x1F / 100f);
+        edge.setColor((edgeAlpha << 24) | 0xFFFFFF);
     }
 
     @Override

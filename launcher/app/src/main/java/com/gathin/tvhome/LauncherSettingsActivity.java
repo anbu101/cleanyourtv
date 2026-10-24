@@ -32,6 +32,8 @@ public final class LauncherSettingsActivity extends Activity {
     private TextView followThemeChoice;
     private TextView bingDailyChoice;
     private Wallpaper wall;
+    private TextView dockOpacityChoice;
+    private int dockOpacity;
     private TextView weatherPanelChoice;
     private boolean weatherPanelOn;
     private TextView weatherBgChoice;
@@ -101,6 +103,16 @@ public final class LauncherSettingsActivity extends Activity {
                 setResult(RESULT_OK);
                 Toast.makeText(this, R.string.bing_stopped, Toast.LENGTH_SHORT).show();
             }
+        });
+
+        dockOpacity = choices.getInt("dock_opacity", 100);
+        dockOpacityChoice = findViewById(R.id.dockOpacityChoice);
+        dockOpacityChoice.setOnClickListener(v -> {
+            dockOpacity -= 10;
+            if (dockOpacity < 0) dockOpacity = 100;
+            choices.edit().putInt("dock_opacity", dockOpacity).apply();
+            setResult(RESULT_OK);
+            refresh();
         });
 
         weatherPanelChoice = findViewById(R.id.weatherPanelChoice);
@@ -272,6 +284,7 @@ public final class LauncherSettingsActivity extends Activity {
         themeChoice.setText(getString(R.string.theme_label, themeDisplayName(currentTheme)));
         bingDailyChoice.setText(getString(R.string.bing_daily_state,
                 getString(wall.autoDaily() ? R.string.on : R.string.off)));
+        dockOpacityChoice.setText(getString(R.string.dock_opacity_state, dockOpacity));
         weatherPanelChoice.setText(getString(R.string.weather_panel_state,
                 getString(weatherPanelOn ? R.string.on : R.string.off)));
         animationsChoice.setText(getString(R.string.animations_state,

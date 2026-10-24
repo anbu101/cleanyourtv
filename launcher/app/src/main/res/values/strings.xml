@@ -56,7 +56,10 @@
     <string name="bing_fetching">"Fetching today's picture…"</string>
     <string name="bing_updated">Wallpaper updated</string>
     <string name="bing_failed">Could not fetch the picture</string>
-    <string name="bing_stopped">Daily changes off, the current wallpaper stays</string>
+    <string name="bing_stopped">Daily changes off, wallpaper removed</string>
+    <!-- Dock opacity -->
+    <string name="dock_opacity_state">Dock opacity: %1$d%%</string>
+    <string name="dock_opacity_hint">Tap to cycle. 0 = invisible, 100 = fully opaque.</string>
     <!-- Weather panel -->
     <string name="weather_panel_state">Weather panel: %1$s</string>
     <string name="weather_panel_hint">Tap the weather line under the clock to see hourly forecast, 3-day outlook and air quality.</string>

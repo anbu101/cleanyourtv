@@ -166,6 +166,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private boolean rebuildOnResume = true;
     /** The Inputs or Module cards dropdown while one is open, so onPause can close it. */
     private PopupWindow openPopup;
+    /** Draws the dock band; kept so its colour can follow the wallpaper. */
+    private DockDecoration dockDecoration;
     /** The wallpaper file on the TV; null until something asks for it. */
     private Wallpaper wall;
     /** The picture behind the desk, when there is one; removed and re-added as the wallpaper changes. */
@@ -360,7 +362,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         });
         grid.setHasFixedSize(true);
         grid.setItemAnimator(null);
-        grid.addItemDecoration(new DockDecoration(COLUMNS, density));
+        dockDecoration = new DockDecoration(COLUMNS, density);
+        dockDecoration.setOpacity(getSharedPreferences(Config.SETTINGS_NAME, MODE_PRIVATE)
+                .getInt("dock_opacity", 100));
+        grid.addItemDecoration(dockDecoration);
         TopFade.attach(grid, 48 * density);
         if (animations) {
             int enterAnim = reducedMotion ? R.anim.tile_enter_reduced : R.anim.tile_enter;
