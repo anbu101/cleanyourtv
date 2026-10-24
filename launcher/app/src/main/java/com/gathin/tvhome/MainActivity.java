@@ -563,6 +563,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                     new Intent(this, LauncherSettingsActivity.class), LAUNCHER_SETTINGS_REQUEST);
             return true;
         }
+        if (keyCode == KeyEvent.KEYCODE_HOME) {
+            scrollToTop();
+            return true;
+        }
         return super.onKeyDown(keyCode, event);
     }
 
@@ -575,10 +579,30 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         if (intent == null || !intent.hasCategory(Intent.CATEGORY_HOME)) return;
-        grid.scrollToPosition(0);
-        lastFocused = 0;
-        lastFocusedKey = adapter.getItemCount() > 0 ? adapter.keyAt(0) : null;
+        scrollToTop();
         rebuildOnResume = true;
+    }
+
+    /** Called from HomeKeyService when Home is pressed while the launcher is already in front. */
+    static void onHomeKeyFromService() {
+        MainActivity activity = instance;
+        if (activity != null) activity.runOnUiThread(activity::scrollToTop);
+    }
+
+    /** Back to the first tile, the way the Home button behaves on a phone launcher. */
+    private void scrollToTop() {
+        if (adapter == null || adapter.getItemCount() == 0) return;
+        lastFocused = 0;
+        lastFocusedKey = adapter.keyAt(0);
+        hideGlass();
+        grid.scrollToPosition(0);
+        grid.post(() -> {
+            RecyclerView.ViewHolder vh = grid.findViewHolderForAdapterPosition(0);
+            if (vh == null) { focusTile(0); return; }
+            View card = vh.itemView.findViewById(R.id.card);
+            onTileFocused(0, card);
+            card.requestFocus();
+        });
     }
 
     @Override

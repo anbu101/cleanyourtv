@@ -8,8 +8,8 @@ import android.view.accessibility.AccessibilityEvent;
 
 /**
  * Sends the remote's Home button to this launcher on remotes that emit KEYCODE_ALL_APPS for Home
- * (Xiaomi sticks and boxes). Android TV 9 routes that key only to the system-image launcher, so once
- * the stock launcher is disabled the button does nothing. Every other key passes through untouched.
+ * (Xiaomi sticks and boxes). Also intercepts KEYCODE_HOME when the launcher is already in front
+ * so the desk scrolls back to the top (the system swallows Home in that case).
  *
  * Enable over adb:
  *   settings put secure enabled_accessibility_services com.gathin.tvhome/.HomeKeyService
@@ -22,6 +22,8 @@ public class HomeKeyService extends AccessibilityService {
     private int[] settingsKeycodes = new int[0];
     /** Stops key filtering while a game controller is connected; null unless gamepad_passthrough is on. */
     private GamepadPassthrough gamepads;
+    /** The package of the window that came to front last. */
+    private String foreground = "";
 
     @Override
     protected void onServiceConnected() {
@@ -49,7 +51,15 @@ public class HomeKeyService extends AccessibilityService {
 
     @Override
     protected boolean onKeyEvent(KeyEvent event) {
-        // The stock launcher handled the remote's Settings button; with it disabled the button does nothing.
+        if (event.getKeyCode() == KeyEvent.KEYCODE_HOME) {
+            // When the launcher is already in front the system swallows Home — the desk never
+            // hears about it. Intercept it here so the desk can scroll back to the top.
+            if (!getPackageName().equals(foreground)) return false;
+            if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) {
+                MainActivity.onHomeKeyFromService();
+            }
+            return true;
+        }
         if (isSettingsKey(event)) {
             if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) {
                 startActivity(new Intent(Settings.ACTION_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
@@ -69,6 +79,10 @@ public class HomeKeyService extends AccessibilityService {
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
+        if (event.getEventType() == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+                && event.getPackageName() != null) {
+            foreground = event.getPackageName().toString();
+        }
     }
 
     @Override
