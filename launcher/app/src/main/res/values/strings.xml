@@ -50,6 +50,13 @@
     <string name="theme_default">Default (black)</string>
     <string name="theme_aurora">Aurora</string>
     <string name="theme_six_columns">Six columns</string>
+    <!-- Bing daily wallpaper -->
+    <string name="bing_daily_state">Bing daily wallpaper: %1$s</string>
+    <string name="bing_daily_hint">A new picture from Bing every day as your desktop wallpaper.</string>
+    <string name="bing_fetching">"Fetching today's picture…"</string>
+    <string name="bing_updated">Wallpaper updated</string>
+    <string name="bing_failed">Could not fetch the picture</string>
+    <string name="bing_stopped">Daily changes off, the current wallpaper stays</string>
     <!-- Weather panel -->
     <string name="weather_panel_state">Weather panel: %1$s</string>
     <string name="weather_panel_hint">Tap the weather line under the clock to see hourly forecast, 3-day outlook and air quality.</string>

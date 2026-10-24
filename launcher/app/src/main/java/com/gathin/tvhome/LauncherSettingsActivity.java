@@ -30,6 +30,8 @@ public final class LauncherSettingsActivity extends Activity {
     private TextView animationsChoice;
     private TextView advancedChoice;
     private TextView followThemeChoice;
+    private TextView bingDailyChoice;
+    private Wallpaper wall;
     private TextView weatherPanelChoice;
     private boolean weatherPanelOn;
     private TextView weatherBgChoice;
@@ -74,6 +76,30 @@ public final class LauncherSettingsActivity extends Activity {
 
         themeChoice = findViewById(R.id.themeChoice);
         themeChoice.setOnClickListener(v -> showThemeDialog());
+
+        wall = new Wallpaper(this);
+        bingDailyChoice = findViewById(R.id.bingDailyChoice);
+        bingDailyChoice.setOnClickListener(v -> {
+            boolean on = !wall.autoDaily();
+            wall.setAutoDaily(on);
+            setResult(RESULT_OK);
+            refresh();
+            if (on) {
+                Toast.makeText(this, R.string.bing_fetching, Toast.LENGTH_SHORT).show();
+                new Thread(() -> {
+                    boolean done = wall.refreshBingIfDue();
+                    runOnUiThread(() -> {
+                        refresh();
+                        if (done) setResult(RESULT_OK);
+                        Toast.makeText(this,
+                                done ? R.string.bing_updated : R.string.bing_failed,
+                                Toast.LENGTH_SHORT).show();
+                    });
+                }).start();
+            } else {
+                Toast.makeText(this, R.string.bing_stopped, Toast.LENGTH_SHORT).show();
+            }
+        });
 
         weatherPanelChoice = findViewById(R.id.weatherPanelChoice);
         weatherPanelChoice.setOnClickListener(v -> {
@@ -242,6 +268,8 @@ public final class LauncherSettingsActivity extends Activity {
             columnChoices[i].setSelected(columns == i + 4);
         }
         themeChoice.setText(getString(R.string.theme_label, themeDisplayName(currentTheme)));
+        bingDailyChoice.setText(getString(R.string.bing_daily_state,
+                getString(wall.autoDaily() ? R.string.on : R.string.off)));
         weatherPanelChoice.setText(getString(R.string.weather_panel_state,
                 getString(weatherPanelOn ? R.string.on : R.string.off)));
         animationsChoice.setText(getString(R.string.animations_state,

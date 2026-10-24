@@ -49,6 +49,15 @@
             android:text="@string/theme_hint" />
 
         <TextView
+            android:id="@+id/bingDailyChoice"
+            style="@style/SettingsRow"
+            android:layout_marginTop="8dp" />
+
+        <TextView
+            style="@style/SettingsHint"
+            android:text="@string/bing_daily_hint" />
+
+        <TextView
             android:id="@+id/weatherPanelChoice"
             style="@style/SettingsRow"
             android:layout_marginTop="8dp" />

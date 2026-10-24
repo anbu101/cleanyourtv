@@ -166,6 +166,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private boolean rebuildOnResume = true;
     /** The Inputs or Module cards dropdown while one is open, so onPause can close it. */
     private PopupWindow openPopup;
+    /** The wallpaper file on the TV; null until something asks for it. */
+    private Wallpaper wall;
+    /** The picture behind the desk, when there is one; removed and re-added as the wallpaper changes. */
+    private ImageView wallpaperView;
+    /** Set when the wallpaper bitmap was handed back to the system; it comes back on resume. */
+    private boolean wallpaperReleased;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     /** Refreshes the network pill when the connection changes: at boot Wi-Fi often connects after Home is shown. */
@@ -253,6 +259,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         weatherView = findViewById(R.id.weather);
         if (cfg.weatherBg) {
             weatherFetcher = new WeatherFetcher((scene, label) -> {
+                // A wallpaper replaces the animated weather backdrop.
+                if (wallpaperView != null) { weatherView.setScene(WeatherView.Scene.NONE); return; }
                 WeatherView.Scene effective = (cfg.allowedWeatherScenes.isEmpty()
                         || cfg.allowedWeatherScenes.contains(scene.name()))
                         ? scene : WeatherView.Scene.NONE;
@@ -482,13 +490,24 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                     .removeCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
                     .build(), vpnCallback);
         }
+
+        // If the user left the Bing wallpaper on, fetch today's picture in the background.
+        wall = new Wallpaper(this);
+        if (wall.autoDaily()) {
+            new Thread(() -> {
+                final boolean done = wall.refreshBingIfDue();
+                if (done) handler.post(this::applyWallpaper);
+            }).start();
+        }
     }
 
     /**
      * A theme's full-screen picture behind everything. Decoded once, downsampled to the screen so a 4K
      * JPEG costs a 1080p bitmap at most (about 8 MB), which is the price of a wallpaper on a 1 GB TV.
+     * Kept as a field so a wallpaper can be added or dropped in place, without rebuilding the activity.
      */
     private void showWallpaper(File file) {
+        removeWallpaper();
         try {
             android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
             android.graphics.BitmapFactory.Options opts = new android.graphics.BitmapFactory.Options();
@@ -501,13 +520,35 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             opts.inPreferredConfig = android.graphics.Bitmap.Config.RGB_565;   // no alpha needed, half the memory
             android.graphics.Bitmap bmp = android.graphics.BitmapFactory.decodeFile(file.getPath(), opts);
             if (bmp == null) return;
-            android.widget.ImageView wall = new android.widget.ImageView(this);
-            wall.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
-            wall.setImageBitmap(bmp);
-            root.addView(wall, 0, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            ImageView view = new ImageView(this);
+            view.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            view.setImageBitmap(bmp);
+            root.addView(view, 0, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            wallpaperView = view;
+            // A wallpaper replaces the animated weather backdrop; both full-screen layers at once
+            // just hide the picture the user chose.
+            if (weatherView != null) weatherView.setVisibility(View.GONE);
         } catch (Exception | OutOfMemoryError e) {
             // A bad or huge picture must never take the home screen down; the plain colour stays.
         }
+    }
+
+    private void removeWallpaper() {
+        if (wallpaperView != null) {
+            root.removeView(wallpaperView);
+            wallpaperView = null;
+            // Restore the weather backdrop if it was hidden for the wallpaper.
+            if (weatherView != null && weatherFetcher != null)
+                weatherView.setVisibility(View.VISIBLE);
+        }
+    }
+
+    /** Re-apply whatever wallpaper is on disk now, adding or dropping it as needed. */
+    void applyWallpaper() {
+        if (wall == null) wall = new Wallpaper(this);
+        File f = wall.file();
+        if (f != null && f.isFile() && f.length() > 0) showWallpaper(f);
+        else removeWallpaper();
     }
 
     /**
@@ -539,6 +580,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     protected void onResume() {
         super.onResume();
         promptsPaused = false;
+        if (wallpaperReleased) {
+            wallpaperReleased = false;
+            applyWallpaper();
+        }
         if (rebuildOnResume) {
             tilesReady = false;
             reloadApps(true);
