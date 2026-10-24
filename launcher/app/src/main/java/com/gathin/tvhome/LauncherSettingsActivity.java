@@ -97,6 +97,8 @@ public final class LauncherSettingsActivity extends Activity {
                     });
                 }).start();
             } else {
+                wall.clear();
+                setResult(RESULT_OK);
                 Toast.makeText(this, R.string.bing_stopped, Toast.LENGTH_SHORT).show();
             }
         });
