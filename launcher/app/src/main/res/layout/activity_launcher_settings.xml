@@ -40,6 +40,15 @@
             android:text="@string/settings_section_display" />
 
         <TextView
+            android:id="@+id/themeChoice"
+            style="@style/SettingsRow"
+            android:layout_marginTop="8dp" />
+
+        <TextView
+            style="@style/SettingsHint"
+            android:text="@string/theme_hint" />
+
+        <TextView
             android:id="@+id/weatherBgChoice"
             style="@style/SettingsRow"
             android:layout_marginTop="8dp" />

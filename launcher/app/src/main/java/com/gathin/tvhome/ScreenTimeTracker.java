@@ -43,7 +43,28 @@ public final class ScreenTimeTracker {
     public ScreenTimeTracker(Context ctx) {
         prefs = ctx.getApplicationContext()
                    .getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        sanitize();
         rollIfNewDay();
+    }
+
+    /** One-time cleanup: discard any day bucket that exceeds 20 hours (corrupt data). */
+    private void sanitize() {
+        // 20h is generous — a TV realistically isn't on for more than that in a day.
+        final long SANE_MAX = 20L * 60 * 60 * 1000;
+        SharedPreferences.Editor ed = null;
+        long today = prefs.getLong(KEY_TODAY, 0);
+        if (today > SANE_MAX || today < 0) {
+            ed = prefs.edit();
+            ed.putLong(KEY_TODAY, 0);
+        }
+        for (int i = 0; i < HISTORY; i++) {
+            long day = prefs.getLong("day_" + i, 0);
+            if (day > SANE_MAX || day < 0) {
+                if (ed == null) ed = prefs.edit();
+                ed.putLong("day_" + i, 0);
+            }
+        }
+        if (ed != null) ed.apply();
     }
 
     /** Display turned on. */

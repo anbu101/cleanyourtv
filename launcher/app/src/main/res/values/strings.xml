@@ -45,6 +45,11 @@
     <string name="reorder_hint">Select an app and press OK to pick it up</string>
     <string name="reorder_hint_moving">↑ ↓ to move · OK to drop · Back to cancel</string>
     <string name="reorder_done">Save order</string>
+    <string name="theme_label">Theme: %1$s</string>
+    <string name="theme_hint">Changes the wallpaper and background colour. Your other settings (weather, ticker, dock) are kept.</string>
+    <string name="theme_default">Default (black)</string>
+    <string name="theme_aurora">Aurora</string>
+    <string name="theme_six_columns">Six columns</string>
     <string name="on">On</string>
     <string name="off">Off</string>
     <string name="enable">Enable</string>

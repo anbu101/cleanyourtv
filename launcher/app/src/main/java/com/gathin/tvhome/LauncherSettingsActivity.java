@@ -5,6 +5,7 @@ import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.res.AssetManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Build;
@@ -14,6 +15,12 @@ import android.text.InputType;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 
 /** Remote-friendly settings owned by the launcher; system settings stay one row away. */
 public final class LauncherSettingsActivity extends Activity {
@@ -30,6 +37,8 @@ public final class LauncherSettingsActivity extends Activity {
     private boolean cricketLiveScore;
     private TextView marketChoice;
     private boolean marketTicker;
+    private TextView themeChoice;
+    private String currentTheme;
     private TextView kidsModeChoice;
     private TextView overlayClockChoice;
     private int columns;
@@ -57,6 +66,10 @@ public final class LauncherSettingsActivity extends Activity {
         marketTicker = config.marketTicker;
         kidsMode = config.kidsMode;
         overlayClockEnabled = config.overlayClockEnabled;
+        currentTheme = choices.getString("active_theme", "default");
+
+        themeChoice = findViewById(R.id.themeChoice);
+        themeChoice.setOnClickListener(v -> showThemeDialog());
 
         int[] ids = {R.id.columns4, R.id.columns5, R.id.columns6, R.id.columns7};
         for (int i = 0; i < ids.length; i++) {
@@ -215,6 +228,7 @@ public final class LauncherSettingsActivity extends Activity {
         for (int i = 0; i < columnChoices.length; i++) {
             columnChoices[i].setSelected(columns == i + 4);
         }
+        themeChoice.setText(getString(R.string.theme_label, themeDisplayName(currentTheme)));
         animationsChoice.setText(getString(R.string.animations_state,
                 getString(animations ? R.string.on : R.string.off)));
         advancedChoice.setText(getString(R.string.advanced_effects_state,
@@ -342,6 +356,79 @@ public final class LauncherSettingsActivity extends Activity {
             })
             .setNegativeButton(android.R.string.cancel, null)
             .show();
+    }
+
+    // ── Theme picker ────────────────────────────────────────────────────────
+
+    private static final String[][] THEMES = {
+        { "default",     "theme_default" },
+        { "aurora",      "theme_aurora" },
+        { "six-columns", "theme_six_columns" },
+    };
+
+    private String themeDisplayName(String key) {
+        switch (key) {
+            case "aurora":      return getString(R.string.theme_aurora);
+            case "six-columns": return getString(R.string.theme_six_columns);
+            default:            return getString(R.string.theme_default);
+        }
+    }
+
+    private void showThemeDialog() {
+        String[] labels = new String[THEMES.length];
+        int checked = 0;
+        for (int i = 0; i < THEMES.length; i++) {
+            labels[i] = themeDisplayName(THEMES[i][0]);
+            if (THEMES[i][0].equals(currentTheme)) checked = i;
+        }
+        new AlertDialog.Builder(this)
+            .setTitle(R.string.settings_section_display)
+            .setSingleChoiceItems(labels, checked, (dialog, which) -> {
+                dialog.dismiss();
+                String picked = THEMES[which][0];
+                if (picked.equals(currentTheme)) return;
+                applyTheme(picked);
+            })
+            .setNegativeButton(android.R.string.cancel, null)
+            .show();
+    }
+
+    private void applyTheme(String name) {
+        File dir = Config.dir(this);
+        if (dir == null) {
+            Toast.makeText(this, R.string.not_available, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        File configFile = new File(dir, Config.FILE_NAME);
+        File wallpaperFile = new File(dir, Config.WALLPAPER_NAME);
+
+        if ("default".equals(name)) {
+            configFile.delete();
+            wallpaperFile.delete();
+        } else {
+            String assetDir = "themes/" + name;
+            if (!copyAsset(assetDir + "/config.json", configFile)) return;
+            if (!copyAsset(assetDir + "/wallpaper.jpg", wallpaperFile)) {
+                wallpaperFile.delete();
+            }
+        }
+        currentTheme = name;
+        choices.edit().putString("active_theme", name).apply();
+        setResult(RESULT_OK);
+        // Finish so MainActivity gets RESULT_OK and recreates itself with the new theme
+        finish();
+    }
+
+    private boolean copyAsset(String assetPath, File dest) {
+        try (InputStream in = getAssets().open(assetPath);
+             OutputStream out = new FileOutputStream(dest)) {
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+            return true;
+        } catch (IOException e) {
+            return false;
+        }
     }
 
     private void updateWeatherScenesLabel() {

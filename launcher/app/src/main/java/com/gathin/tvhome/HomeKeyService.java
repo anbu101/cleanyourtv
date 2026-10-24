@@ -20,12 +20,24 @@ public class HomeKeyService extends AccessibilityService {
     /** Remote buttons that should open Settings (config.xml, settings_key_scancodes and settings_key_keycodes). */
     private int[] settingsScancodes = new int[0];
     private int[] settingsKeycodes = new int[0];
+    /** Stops key filtering while a game controller is connected; null unless gamepad_passthrough is on. */
+    private GamepadPassthrough gamepads;
 
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
         settingsScancodes = getResources().getIntArray(R.array.settings_key_scancodes);
         settingsKeycodes = getResources().getIntArray(R.array.settings_key_keycodes);
+        if (getResources().getBoolean(R.bool.gamepad_passthrough) && gamepads == null) {
+            gamepads = new GamepadPassthrough(this);
+            gamepads.start();
+        }
+    }
+
+    @Override
+    public void onDestroy() {
+        if (gamepads != null) { gamepads.stop(); gamepads = null; }
+        super.onDestroy();
     }
 
     private boolean isSettingsKey(KeyEvent event) {

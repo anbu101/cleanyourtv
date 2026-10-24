@@ -341,6 +341,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         grid.setHasFixedSize(true);
         grid.setItemAnimator(null);
         grid.addItemDecoration(new DockDecoration(COLUMNS, density));
+        TopFade.attach(grid, 48 * density);
         if (animations) {
             int enterAnim = reducedMotion ? R.anim.tile_enter_reduced : R.anim.tile_enter;
             float enterDelay = reducedMotion ? 0f : 0.06f;
@@ -1196,6 +1197,17 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
      *  which the Live TV app handles; where nothing takes that, the configured `input_action` is sent
      *  with the same URI instead (XGIMI's HDMI player only answers com.xgimi.action.hdmiPlayer). */
     private void openInput(String inputId) {
+        // CEC child-input IDs (a device behind an HDMI port) resolve to their parent port.
+        TvInputManager timResolve = (TvInputManager) getSystemService(TV_INPUT_SERVICE);
+        if (timResolve != null) {
+            try {
+                TvInputInfo info = timResolve.getTvInputInfo(inputId);
+                if (info != null && info.getParentId() != null) {
+                    inputId = info.getParentId();
+                }
+            } catch (Throwable ignored) {
+            }
+        }
         Uri uri = TvContract.buildChannelUriForPassthroughInput(inputId);
         Intent view = new Intent(Intent.ACTION_VIEW).setDataAndType(uri, "vnd.android.cursor.item/channel")
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);

@@ -15,6 +15,23 @@ import android.view.accessibility.AccessibilityEvent;
 public class InputKeyService extends AccessibilityService {
 
     private static final String ACTION_VIEW_INPUTS = "com.android.tv.action.VIEW_INPUTS";
+    /** Stops key filtering while a game controller is connected; null unless gamepad_passthrough is on. */
+    private GamepadPassthrough gamepads;
+
+    @Override
+    protected void onServiceConnected() {
+        super.onServiceConnected();
+        if (getResources().getBoolean(R.bool.gamepad_passthrough) && gamepads == null) {
+            gamepads = new GamepadPassthrough(this);
+            gamepads.start();
+        }
+    }
+
+    @Override
+    public void onDestroy() {
+        if (gamepads != null) { gamepads.stop(); gamepads = null; }
+        super.onDestroy();
+    }
 
     @Override
     protected boolean onKeyEvent(KeyEvent event) {
