@@ -105,11 +105,13 @@ public final class RemoteService extends Service {
             @Override public void onReceive(android.content.Context ctx, android.content.Intent intent) {
                 if (Intent.ACTION_SCREEN_ON.equals(intent.getAction()))  screenTracker.screenOn();
                 else if (Intent.ACTION_SCREEN_OFF.equals(intent.getAction())) screenTracker.screenOff();
+                else if ("com.gathin.tvhome.FLUSH_SCREEN_TIME".equals(intent.getAction())) screenTracker.screenOff();
             }
         };
         IntentFilter sf = new IntentFilter();
         sf.addAction(Intent.ACTION_SCREEN_ON);
         sf.addAction(Intent.ACTION_SCREEN_OFF);
+        sf.addAction("com.gathin.tvhome.FLUSH_SCREEN_TIME");
         registerReceiver(screenReceiver, sf);
     }
 

@@ -14,6 +14,8 @@ ADB="adb -s $TV"
 A11Y=$($ADB shell settings get secure enabled_accessibility_services 2>/dev/null || true)
 
 restart() {
+    # Flush screen time before force-stop (no screenOff otherwise)
+    $ADB shell am broadcast -a com.gathin.tvhome.FLUSH_SCREEN_TIME >/dev/null 2>&1 || true
     $ADB shell am force-stop "$PKG"
     sleep 1
     case "$A11Y" in *$PKG*)

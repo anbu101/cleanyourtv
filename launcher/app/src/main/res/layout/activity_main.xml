@@ -111,18 +111,20 @@
                                 android:textAllCaps="true" />
                         </LinearLayout>
 
-                        <!-- Weather badge: "28° · Drizzle", shown only when weather background is on. -->
-                        <TextView
-                            android:id="@+id/weatherBadge"
+                        <!-- Compact date under the clock: "SAT 24 OCT" -->
+                        <TextClock
+                            android:id="@+id/date"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="-4dp"
-                            android:textColor="#99FFFFFF"
-                            android:textSize="12sp"
-                            android:fontFamily="@font/outfit_regular"
-                            android:letterSpacing="0.06"
-                            android:singleLine="true"
-                            android:visibility="gone" />
+                            android:layout_marginTop="-2dp"
+                            android:format12Hour="@string/date_format"
+                            android:format24Hour="@string/date_format"
+                            android:textColor="#80FFFFFF"
+                            android:textSize="11sp"
+                            android:fontFamily="@font/outfit_medium"
+                            android:letterSpacing="0.14"
+                            android:textAllCaps="true"
+                            android:singleLine="true" />
                     </LinearLayout>
 
                     <View
@@ -134,7 +136,7 @@
                         android:layout_marginBottom="8dp"
                         android:background="#33FFFFFF" />
 
-                    <!-- Right: Date + screen time + market stacked -->
+                    <!-- Right: Weather forecast + screen time + market stacked -->
                     <LinearLayout
                         android:layout_width="0dp"
                         android:layout_weight="1"
@@ -158,20 +160,43 @@
                             android:includeFontPadding="false"
                             android:visibility="gone" />
 
-                        <TextClock
-                            android:id="@+id/date"
-                            android:gravity="left"
-                            android:layout_width="match_parent"
+                        <!-- Weather forecast line: "Chennai 27° Partly cloudy" — clickable to open panel -->
+                        <LinearLayout
+                            android:id="@+id/weatherLine"
+                            android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:singleLine="true"
-                            android:ellipsize="end"
-                            android:format12Hour="@string/date_format"
-                            android:format24Hour="@string/date_format"
-                            android:textColor="#A6FFFFFF"
-                            android:textSize="14sp"
-                            android:fontFamily="@font/outfit_regular"
-                            android:letterSpacing="0.14"
-                            android:textAllCaps="true" />
+                            android:layout_marginStart="-8dp"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:background="@drawable/input_row_bg"
+                            android:paddingStart="8dp"
+                            android:paddingEnd="10dp"
+                            android:paddingTop="2dp"
+                            android:paddingBottom="2dp"
+                            android:focusable="true"
+                            android:focusableInTouchMode="true"
+                            android:nextFocusDown="@+id/grid"
+                            android:visibility="gone">
+
+                            <ImageView
+                                android:id="@+id/weatherIcon"
+                                android:layout_width="14dp"
+                                android:layout_height="14dp"
+                                android:layout_marginEnd="5dp"
+                                android:duplicateParentState="true"
+                                android:tint="@drawable/pill_text"
+                                android:contentDescription="@null" />
+
+                            <TextView
+                                android:id="@+id/weatherText"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:duplicateParentState="true"
+                                android:textColor="@drawable/pill_text"
+                                android:textSize="14sp"
+                                android:fontFamily="@font/outfit_regular"
+                                android:letterSpacing="0.02" />
+                        </LinearLayout>
 
                         <!-- Screen time: "2h 40m today · 50h 1m this week" -->
                         <TextView

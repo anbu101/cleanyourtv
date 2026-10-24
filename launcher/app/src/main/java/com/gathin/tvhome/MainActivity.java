@@ -62,6 +62,11 @@ import androidx.dynamicanimation.animation.SpringForce;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import android.view.LayoutInflater;
+import android.view.WindowManager;
+import android.view.inputmethod.EditorInfo;
+import android.widget.EditText;
+
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -70,6 +75,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * tvOS style home: black, a pinned dock row, an app grid, and one glass highlight that springs between tiles.
@@ -120,6 +127,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private android.widget.TextView marketBadge;
     private MarketFetcher marketFetcher;
     private android.widget.TextView screenTimeView;
+    /** Weather forecast panel (Open-Meteo). */
+    private WeatherPanel wxPanel;
+    private View weatherLine;
+    private ImageView weatherIcon;
+    private TextView weatherText;
+    private WeatherPanel.Report wxReport;
+    private PopupWindow wxPopup;
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final Runnable wxTick = this::refreshWxPanel;
     private boolean kidsMode;
     private String vpnApp;
     private SpringAnimation springX, springY;
@@ -235,25 +251,24 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         kidsMode = cfg.kidsMode;
 
         weatherView = findViewById(R.id.weather);
-        TextView weatherBadge = findViewById(R.id.weatherBadge);
         if (cfg.weatherBg) {
             weatherFetcher = new WeatherFetcher((scene, label) -> {
-                // Apply scene only if it is in the allowed set (empty = all allowed).
                 WeatherView.Scene effective = (cfg.allowedWeatherScenes.isEmpty()
                         || cfg.allowedWeatherScenes.contains(scene.name()))
                         ? scene : WeatherView.Scene.NONE;
                 weatherView.setScene(effective);
-                if (weatherBadge != null) {
-                    if (label != null && !label.isEmpty()) {
-                        weatherBadge.setText(label);
-                        weatherBadge.setVisibility(View.VISIBLE);
-                    } else {
-                        weatherBadge.setVisibility(View.GONE);
-                    }
-                }
             });
             weatherFetcher.start();
         }
+
+        // Weather forecast panel (Open-Meteo)
+        wxPanel = new WeatherPanel(this);
+        weatherLine = findViewById(R.id.weatherLine);
+        weatherIcon = findViewById(R.id.weatherIcon);
+        weatherText = findViewById(R.id.weatherText);
+        weatherLine.setOnClickListener(v -> showWxPanel());
+        if (wxPanel.enabled() && wxPanel.hasPlace()) weatherLine.setVisibility(View.VISIBLE);
+
         glass = findViewById(R.id.glass);
         ambient = findViewById(R.id.ambient);
         // The glow is one bitmap, so its alpha can be applied while drawing it. Otherwise every frame of
@@ -265,9 +280,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         shamsi = cfg.shamsiDate;
         if (shamsi) {
             shamsiDate.setVisibility(View.VISIBLE);
-            TextView date = findViewById(R.id.date);
-            date.setTextSize(11f);
-            date.setPadding(0, (int) (4 * density), 0, 0);
         }
         vpnApp = cfg.vpnApp;
         moduleCards = cfg.moduleCards;
@@ -538,6 +550,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         sky.update();
         updateScreenTime();
         handler.postDelayed(minuteTick, MINUTE_MS);
+        if (wxPanel != null && wxPanel.enabled()) {
+            refreshWxPanel();
+            handler.postDelayed(wxTick, WeatherPanel.REFRESH_MS);
+        }
     }
 
     @Override
@@ -634,6 +650,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         heroName.animate().cancel();
         ambient.animate().cancel();
         handler.removeCallbacks(minuteTick);
+        handler.removeCallbacks(wxTick);
         // Nothing of ours stays on screen over another app; an undecided prompt simply returns next time.
         if (cardPrompt != null) cardPrompt.dismiss();
         if (openPopup != null) openPopup.dismiss();
@@ -1574,5 +1591,302 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             default:
                 return getString(R.string.card_state_new);
         }
+    }
+
+    // ── Weather forecast panel ─────────────────────────────────────────────
+
+    private void refreshWxPanel() {
+        if (wxPanel == null || !wxPanel.enabled() || !wxPanel.hasPlace()) return;
+        executor.execute(() -> {
+            WeatherPanel.Report r;
+            try { r = wxPanel.fetch(); } catch (Exception e) { r = null; }
+            WeatherPanel.Report report = r;
+            handler.post(() -> {
+                if (report == null) return;
+                wxReport = report;
+                showWxLine();
+                if (wxPopup != null && wxPopup.isShowing()) fillWxPopup();
+            });
+        });
+    }
+
+    private void showWxLine() {
+        if (wxReport == null) return;
+        int sky = WeatherPanel.skyOf(wxReport.code);
+        weatherIcon.setImageResource(wxSkyIcon(sky));
+        weatherText.setText(getString(R.string.weather_line, wxPanel.placeName(),
+                wxReport.temp, getString(wxSkyString(sky))));
+    }
+
+    private void showWxPanel() {
+        if (wxPopup != null && wxPopup.isShowing()) { wxPopup.dismiss(); return; }
+        View panel = getLayoutInflater().inflate(R.layout.popup_weather, root, false);
+        panel.findViewById(R.id.btnChangeCity).setOnClickListener(v -> { wxPopup.dismiss(); pickWxCity(); });
+        panel.findViewById(R.id.btnLocate).setOnClickListener(v -> { wxPopup.dismiss(); locateWxCity(); });
+        wxPopup = new PopupWindow(panel, ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT, true);
+        wxPopup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        wxPopup.setOutsideTouchable(true);
+        wxPopup.setElevation(12 * density);
+        int[] at = new int[2];
+        weatherLine.getLocationInWindow(at);
+        int offsetY = (int) (14 * density) - at[1];
+        wxDropIn(wxPopup, panel, weatherLine, offsetY);
+        fillWxPopup();
+        panel.post(() -> panel.findViewById(R.id.btnChangeCity).requestFocus());
+    }
+
+    private void fillWxPopup() {
+        if (wxPopup == null || !wxPopup.isShowing()) return;
+        View panel = wxPopup.getContentView();
+        ((TextView) panel.findViewById(R.id.place)).setText(wxPanel.placeName());
+        TextView message = panel.findViewById(R.id.message);
+        if (wxReport == null) {
+            message.setVisibility(View.VISIBLE);
+            message.setText(getString(R.string.weather_offline));
+            return;
+        }
+        message.setVisibility(View.GONE);
+        int sky = WeatherPanel.skyOf(wxReport.code);
+        ((ImageView) panel.findViewById(R.id.icon)).setImageResource(wxSkyIcon(sky));
+        ((TextView) panel.findViewById(R.id.temp)).setText(getString(R.string.weather_degrees, wxReport.temp));
+        ((TextView) panel.findViewById(R.id.sky)).setText(getString(wxSkyString(sky)));
+        ((TextView) panel.findViewById(R.id.feels)).setText(getString(R.string.weather_feels, wxReport.feels));
+
+        TextView air = panel.findViewById(R.id.air);
+        if (wxReport.aqi >= 0) {
+            air.setText(getString(R.string.weather_aqi, wxReport.aqi, getString(wxAqiLabel(wxReport.aqi))));
+            air.setBackgroundColor(wxAqiColour(wxReport.aqi));
+            air.setVisibility(View.VISIBLE);
+        } else {
+            air.setVisibility(View.GONE);
+        }
+
+        // Hourly strip
+        LinearLayout hourlyRow = panel.findViewById(R.id.hourlyRow);
+        hourlyRow.removeAllViews();
+        LayoutInflater inflater = getLayoutInflater();
+        for (WeatherPanel.Hour h : wxReport.hours) {
+            View item = inflater.inflate(R.layout.item_hour, hourlyRow, false);
+            ((TextView) item.findViewById(R.id.hourLabel)).setText(h.label);
+            ((ImageView) item.findViewById(R.id.hourIcon)).setImageResource(wxSkyIcon(WeatherPanel.skyOf(h.code)));
+            ((TextView) item.findViewById(R.id.hourTemp)).setText(getString(R.string.weather_degrees, h.temp));
+            hourlyRow.addView(item);
+        }
+
+        // Daily forecast with temperature bars
+        LinearLayout days = panel.findViewById(R.id.days);
+        days.removeAllViews();
+        List<WeatherPanel.Day> list = wxReport.days;
+        if (!list.isEmpty()) {
+            int lo = Integer.MAX_VALUE, hi = Integer.MIN_VALUE;
+            for (WeatherPanel.Day d : list) { lo = Math.min(lo, d.min); hi = Math.max(hi, d.max); }
+            int span = Math.max(1, hi - lo);
+            int trackPx = (int) (150 * density);
+            for (int i = 0; i < list.size() && i < 3; i++) {
+                WeatherPanel.Day d = list.get(i);
+                View row = inflater.inflate(R.layout.item_day, days, false);
+                String label = i == 0 ? getString(R.string.weather_today)
+                        : i == 1 ? getString(R.string.weather_tomorrow)
+                        : getString(R.string.weather_day_after);
+                ((TextView) row.findViewById(R.id.dayName)).setText(label);
+                ((ImageView) row.findViewById(R.id.dayIcon)).setImageResource(wxSkyIcon(WeatherPanel.skyOf(d.code)));
+                ((TextView) row.findViewById(R.id.dayLow)).setText(getString(R.string.weather_degrees, d.min));
+                ((TextView) row.findViewById(R.id.dayHigh)).setText(getString(R.string.weather_degrees, d.max));
+                View bar = row.findViewById(R.id.dayBar);
+                FrameLayout.LayoutParams blp = (FrameLayout.LayoutParams) bar.getLayoutParams();
+                blp.leftMargin = (int) ((long) trackPx * (d.min - lo) / span);
+                blp.width = Math.max((int) (4 * density), (int) ((long) trackPx * (d.max - d.min) / span));
+                bar.setLayoutParams(blp);
+                days.addView(row);
+            }
+        }
+
+        TextView updated = panel.findViewById(R.id.updated);
+        updated.setVisibility(View.VISIBLE);
+        updated.setText(getString(R.string.weather_updated,
+                android.text.format.DateFormat.getTimeFormat(this).format(new java.util.Date())));
+    }
+
+    // ── City picker ────────────────────────────────────────────────────────
+
+    private void pickWxCity() {
+        View panel = getLayoutInflater().inflate(R.layout.popup_city, root, false);
+        EditText input = panel.findViewById(R.id.cityInput);
+        LinearLayout results = panel.findViewById(R.id.results);
+        TextView message = panel.findViewById(R.id.message);
+        input.setText(wxPanel.placeName());
+        final PopupWindow popup = new PopupWindow(panel, ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT, true);
+        popup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+        popup.setOutsideTouchable(true);
+        popup.setElevation(12 * density);
+        popup.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE);
+
+        Runnable search = () -> {
+            String typed = input.getText().toString();
+            if (typed.trim().isEmpty()) return;
+            message.setVisibility(View.VISIBLE);
+            message.setText(getString(R.string.weather_searching));
+            results.removeAllViews();
+            executor.execute(() -> {
+                List<WeatherPanel.Place> found;
+                try {
+                    found = wxPanel.search(typed);
+                    if (found.isEmpty()) found = wxPanel.searchIn(typed, "en");
+                } catch (Exception e) { found = null; }
+                List<WeatherPanel.Place> places = found;
+                handler.post(() -> {
+                    message.setVisibility(View.GONE);
+                    if (places == null) {
+                        Toast.makeText(this, R.string.weather_offline, Toast.LENGTH_SHORT).show();
+                    } else if (places.isEmpty()) {
+                        message.setVisibility(View.VISIBLE);
+                        message.setText(getString(R.string.weather_pick_none, typed.trim()));
+                    } else {
+                        for (WeatherPanel.Place p : places) {
+                            TextView row = (TextView) getLayoutInflater().inflate(R.layout.item_place, results, false);
+                            row.setText(p.row());
+                            wxPickPlace(row, p, popup);
+                            results.addView(row);
+                        }
+                        results.getChildAt(0).requestFocus();
+                    }
+                });
+            });
+        };
+
+        // Common cities grid
+        LinearLayout commonRow = panel.findViewById(R.id.commonRow);
+        commonRow.removeAllViews();
+        LayoutInflater inflater = getLayoutInflater();
+        for (WeatherPanel.Place c : wxPanel.common()) {
+            TextView chip = (TextView) inflater.inflate(R.layout.item_city, commonRow, false);
+            chip.setText(c.row());
+            wxPickPlace(chip, c, popup);
+            commonRow.addView(chip);
+        }
+
+        panel.findViewById(R.id.btnSearch).setOnClickListener(v -> search.run());
+        input.setOnEditorActionListener((v, actionId, event) -> {
+            if (actionId == EditorInfo.IME_ACTION_SEARCH || actionId == EditorInfo.IME_ACTION_GO) {
+                search.run(); return true;
+            }
+            if (event != null && event.getAction() == KeyEvent.ACTION_DOWN
+                    && (event.getKeyCode() == KeyEvent.KEYCODE_ENTER
+                        || event.getKeyCode() == KeyEvent.KEYCODE_SEARCH)) {
+                search.run(); return true;
+            }
+            return false;
+        });
+        int[] at = new int[2];
+        weatherLine.getLocationInWindow(at);
+        wxDropIn(popup, panel, weatherLine, (int) (14 * density) - at[1]);
+        input.requestFocus();
+    }
+
+    private void wxPickPlace(View row, WeatherPanel.Place place, PopupWindow popup) {
+        row.setOnClickListener(v -> {
+            wxPanel.place(place.name, place.lat, place.lon);
+            popup.dismiss();
+            refreshWxPanel();
+            Toast.makeText(this, place.name, Toast.LENGTH_SHORT).show();
+        });
+    }
+
+    private void locateWxCity() {
+        Toast.makeText(this, R.string.weather_locating, Toast.LENGTH_SHORT).show();
+        executor.execute(() -> {
+            WeatherPanel.Place p;
+            try { p = wxPanel.locate(); } catch (Exception e) { p = null; }
+            WeatherPanel.Place place = p;
+            handler.post(() -> {
+                if (place == null) {
+                    Toast.makeText(this, R.string.weather_locate_failed, Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                wxPanel.place(place.name, place.lat, place.lon);
+                refreshWxPanel();
+                Toast.makeText(this, place.name, Toast.LENGTH_SHORT).show();
+            });
+        });
+    }
+
+    /** Toggle weather panel from Launcher Settings. */
+    void toggleWxPanel(boolean on) {
+        wxPanel.enabled(on);
+        if (on) {
+            if (!wxPanel.hasPlace()) {
+                // Default to Mumbai for Indian TVs
+                wxPanel.place("Mumbai", 19.0760, 72.8777);
+            }
+            weatherLine.setVisibility(View.VISIBLE);
+            refreshWxPanel();
+            handler.postDelayed(wxTick, WeatherPanel.REFRESH_MS);
+        } else {
+            weatherLine.setVisibility(View.GONE);
+            handler.removeCallbacks(wxTick);
+            if (wxPopup != null) wxPopup.dismiss();
+        }
+    }
+
+    private void wxDropIn(PopupWindow popup, View panel, View anchor, int offsetY) {
+        if (reducedMotion) {
+            popup.showAsDropDown(anchor, 0, offsetY, Gravity.START);
+            return;
+        }
+        panel.setAlpha(0f);
+        panel.setPivotY(0f);
+        panel.setScaleY(0.92f);
+        panel.setTranslationY(-8 * density);
+        popup.showAsDropDown(anchor, 0, offsetY, Gravity.START);
+        panel.animate().alpha(1f).scaleY(1f).translationY(0f).setDuration(220)
+                .setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f)).start();
+    }
+
+    private static int wxSkyIcon(int sky) {
+        switch (sky) {
+            case 0: return R.drawable.ic_wx_clear;
+            case 1: return R.drawable.ic_wx_cloudy;
+            case 2: return R.drawable.ic_wx_fog;
+            case 3: return R.drawable.ic_wx_drizzle;
+            case 4: return R.drawable.ic_wx_rain;
+            case 5: return R.drawable.ic_wx_snow;
+            case 6: return R.drawable.ic_wx_showers;
+            case 7: return R.drawable.ic_wx_snow;
+            default: return R.drawable.ic_wx_thunder;
+        }
+    }
+
+    private static int wxSkyString(int sky) {
+        switch (sky) {
+            case 0: return R.string.wx_clear;
+            case 1: return R.string.wx_cloudy;
+            case 2: return R.string.wx_fog;
+            case 3: return R.string.wx_drizzle;
+            case 4: return R.string.wx_rain;
+            case 5: return R.string.wx_snow;
+            case 6: return R.string.wx_showers;
+            case 7: return R.string.wx_snow_showers;
+            default: return R.string.wx_thunder;
+        }
+    }
+
+    private static int wxAqiLabel(int aqi) {
+        if (aqi <= 50) return R.string.wx_aqi_good;
+        if (aqi <= 100) return R.string.wx_aqi_moderate;
+        if (aqi <= 150) return R.string.wx_aqi_sensitive;
+        if (aqi <= 200) return R.string.wx_aqi_unhealthy;
+        if (aqi <= 300) return R.string.wx_aqi_very_unhealthy;
+        return R.string.wx_aqi_hazardous;
+    }
+
+    private static int wxAqiColour(int aqi) {
+        if (aqi <= 50) return 0xFF2E9E5B;
+        if (aqi <= 100) return 0xFFD9A62E;
+        if (aqi <= 150) return 0xFFE07A2E;
+        if (aqi <= 200) return 0xFFD64545;
+        if (aqi <= 300) return 0xFF8E4B9E;
+        return 0xFF8C2F2F;
     }
 }

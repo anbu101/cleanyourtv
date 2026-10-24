@@ -17,6 +17,9 @@ cd launcher
 APK=app/build/outputs/apk/release/app-release.apk
 echo "Built: $APK"
 
+# Flush screen time before the install kills the process (no screenOff otherwise)
+adb -s "$TV:5555" shell am broadcast -a com.gathin.tvhome.FLUSH_SCREEN_TIME >/dev/null 2>&1 || true
+
 adb -s "$TV:5555" push "$APK" /data/local/tmp/tvhome.apk
 adb -s "$TV:5555" shell pm install -r /data/local/tmp/tvhome.apk
 adb -s "$TV:5555" shell rm /data/local/tmp/tvhome.apk

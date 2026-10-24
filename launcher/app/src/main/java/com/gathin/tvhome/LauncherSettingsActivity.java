@@ -30,6 +30,8 @@ public final class LauncherSettingsActivity extends Activity {
     private TextView animationsChoice;
     private TextView advancedChoice;
     private TextView followThemeChoice;
+    private TextView weatherPanelChoice;
+    private boolean weatherPanelOn;
     private TextView weatherBgChoice;
     private TextView weatherScenesChoice;
     private TextView tickerChoice;
@@ -67,9 +69,20 @@ public final class LauncherSettingsActivity extends Activity {
         kidsMode = config.kidsMode;
         overlayClockEnabled = config.overlayClockEnabled;
         currentTheme = choices.getString("active_theme", "default");
+        weatherPanelOn = getSharedPreferences(WeatherPanel.PREFS, MODE_PRIVATE)
+                .getBoolean("enabled", false);
 
         themeChoice = findViewById(R.id.themeChoice);
         themeChoice.setOnClickListener(v -> showThemeDialog());
+
+        weatherPanelChoice = findViewById(R.id.weatherPanelChoice);
+        weatherPanelChoice.setOnClickListener(v -> {
+            weatherPanelOn = !weatherPanelOn;
+            MainActivity ma = MainActivity.instance;
+            if (ma != null) ma.toggleWxPanel(weatherPanelOn);
+            setResult(RESULT_OK);
+            refresh();
+        });
 
         int[] ids = {R.id.columns4, R.id.columns5, R.id.columns6, R.id.columns7};
         for (int i = 0; i < ids.length; i++) {
@@ -229,6 +242,8 @@ public final class LauncherSettingsActivity extends Activity {
             columnChoices[i].setSelected(columns == i + 4);
         }
         themeChoice.setText(getString(R.string.theme_label, themeDisplayName(currentTheme)));
+        weatherPanelChoice.setText(getString(R.string.weather_panel_state,
+                getString(weatherPanelOn ? R.string.on : R.string.off)));
         animationsChoice.setText(getString(R.string.animations_state,
                 getString(animations ? R.string.on : R.string.off)));
         advancedChoice.setText(getString(R.string.advanced_effects_state,
