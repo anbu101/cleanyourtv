@@ -77,6 +77,21 @@ public final class ScreenTimeTracker {
         prefs.edit().putLong(KEY_SESSION, System.currentTimeMillis()).apply();
     }
 
+    /** Flush the running session into today's bucket and restart it. Call periodically
+     *  (e.g. every minute) so a hard power-off doesn't lose more than ~1 minute. */
+    public synchronized void flush() {
+        long start = prefs.getLong(KEY_SESSION, 0);
+        if (start == 0) return;
+        long now = System.currentTimeMillis();
+        long elapsed = Math.max(0, Math.min(now - start, MAX_DAY_MS));
+        if (elapsed < 1000) return; // nothing meaningful
+        rollIfNewDay();
+        prefs.edit()
+             .putLong(KEY_TODAY, prefs.getLong(KEY_TODAY, 0) + elapsed)
+             .putLong(KEY_SESSION, now)
+             .apply();
+    }
+
     /** Display turned off — flushes the current session into today's bucket. */
     public synchronized void screenOff() {
         rollIfNewDay();

@@ -228,6 +228,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             updateGreeting();
             updateWifiLabel();
             sky.update();
+            ScreenTimeTracker st = ScreenTimeTracker.instance;
+            if (st != null) st.flush();
             updateScreenTime();
             handler.postDelayed(this, MINUTE_MS);
         }
