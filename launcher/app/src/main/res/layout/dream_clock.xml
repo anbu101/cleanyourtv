@@ -76,4 +76,16 @@
             android:letterSpacing="0.14"
             android:textAllCaps="true" />
     </LinearLayout>
+
+    <!-- Synced lyrics in screensaver; same settings as the home screen. -->
+    <com.gathin.tvhome.LyricsView
+        android:id="@+id/dreamLyrics"
+        android:layout_width="416dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="end"
+        android:layout_marginTop="60dp"
+        android:layout_marginBottom="40dp"
+        android:layout_marginEnd="16dp"
+        android:visibility="gone"
+        android:importantForAccessibility="no" />
 </FrameLayout>

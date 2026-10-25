@@ -166,4 +166,16 @@
     <string name="weather_scene_rain">Rain</string>
     <string name="weather_scene_snow">Snow</string>
     <string name="weather_scene_thunderstorm">Thunderstorm</string>
+    <!-- Screensaver timeout -->
+    <string name="screensaver_timeout_state">Screensaver after: %1$s</string>
+    <string name="screensaver_timeout_hint">How long the TV sits idle before the screensaver starts.</string>
+    <!-- Lyrics -->
+    <string name="lyrics_state">Now playing lyrics: %1$s</string>
+    <string name="lyrics_hint">Shows synced song lyrics on the home screen when music is playing in the background.</string>
+    <string name="lyrics_focus_state">Lyrics focus dim: %1$s</string>
+    <string name="lyrics_focus_hint">Fades the clock, dock and buttons when lyrics are playing, so the lyrics stand out.</string>
+    <string name="lyrics_off">Off</string>
+    <string name="lyrics_left">Left</string>
+    <string name="lyrics_centre">Centre</string>
+    <string name="lyrics_right">Right</string>
 </resources>

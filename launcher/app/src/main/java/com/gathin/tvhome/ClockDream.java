@@ -13,6 +13,9 @@ import android.service.dreams.DreamService;
 import android.view.View;
 import android.widget.ImageView;
 
+import android.view.Gravity;
+import android.widget.FrameLayout;
+
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -44,6 +47,11 @@ public class ClockDream extends DreamService {
     private int photoIndex = 0;
     private static final long PHOTO_INTERVAL_MS = 30_000L;
     private static final String PHOTO_DIR = "CleanYourTV";
+    private LyricsView dreamLyrics;
+    private NowPlayingListener dreamNowPlaying;
+    private LyricsFetcher dreamLyricsFetcher;
+    private List<LyricsFetcher.Line> dreamCurrentLyrics = Collections.emptyList();
+    private String dreamLyricsTrackKey = "";
 
     private final Runnable tick = new Runnable() {
         @Override
@@ -118,10 +126,61 @@ public class ClockDream extends DreamService {
             });
             dreamWeatherFetcher.start();
         }
+
+        // Synced lyrics in screensaver — same placement setting as the home screen.
+        int lyricsPlacement = getSharedPreferences(Config.SETTINGS_NAME, MODE_PRIVATE)
+                .getInt("lyrics_placement", -1);
+        dreamLyrics = findViewById(R.id.dreamLyrics);
+        if (lyricsPlacement >= 0 && dreamLyrics != null) {
+            applyDreamLyricsPlacement(lyricsPlacement);
+            dreamLyricsFetcher = new LyricsFetcher();
+            dreamNowPlaying = new NowPlayingListener(this, new NowPlayingListener.Callback() {
+                @Override
+                public void onTrackChanged(String title, String artist, long durationMs) {
+                    if (title == null || title.isEmpty()) {
+                        dreamCurrentLyrics = Collections.emptyList();
+                        dreamLyricsTrackKey = "";
+                        dreamLyrics.setLines(null);
+                        dreamLyrics.setVisibility(View.GONE);
+                        placeClock();
+                        return;
+                    }
+                    String key = title + "|" + artist;
+                    if (key.equals(dreamLyricsTrackKey)) return;
+                    dreamLyricsTrackKey = key;
+                    dreamLyricsFetcher.fetch(title, artist, durationMs, lines -> {
+                        dreamCurrentLyrics = lines;
+                        if (lines.isEmpty()) {
+                            dreamLyrics.setLines(null);
+                            dreamLyrics.setVisibility(View.GONE);
+                            placeClock();
+                        } else {
+                            dreamLyrics.setLines(lines);
+                            dreamLyrics.setVisibility(View.VISIBLE);
+                            placeClock();
+                        }
+                    });
+                }
+                @Override
+                public void onPositionUpdate(long positionMs, boolean playing) {
+                    if (!dreamCurrentLyrics.isEmpty() && playing) {
+                        dreamLyrics.setPosition(positionMs);
+                        if (dreamLyrics.getVisibility() != View.VISIBLE)
+                            dreamLyrics.setVisibility(View.VISIBLE);
+                    }
+                }
+            });
+            dreamNowPlaying.start();
+        }
     }
 
     @Override
     public void onDreamingStopped() {
+        if (dreamNowPlaying != null) { dreamNowPlaying.stop(); dreamNowPlaying = null; }
+        if (dreamLyricsFetcher != null) { dreamLyricsFetcher.shutdown(); dreamLyricsFetcher = null; }
+        if (dreamLyrics != null) { dreamLyrics.setLines(null); dreamLyrics.setVisibility(View.GONE); }
+        dreamCurrentLyrics = Collections.emptyList();
+        dreamLyricsTrackKey = "";
         if (dreamWeatherFetcher != null) {
             dreamWeatherFetcher.stop();
             dreamWeatherFetcher = null;
@@ -190,13 +249,22 @@ public class ClockDream extends DreamService {
         }).start();
     }
 
-    /** A random spot that keeps the whole clock on screen, with the glow centred behind it. */
+    /** A random spot that keeps the whole clock on screen, with the glow centred behind it.
+     *  When lyrics are active, pins the clock to the top-left to avoid overlap. */
     private void placeClock() {
         View parent = (View) content.getParent();
-        int maxX = Math.max(0, parent.getWidth() - content.getWidth());
-        int maxY = Math.max(0, parent.getHeight() - content.getHeight());
-        float x = maxX * (0.1f + 0.8f * random.nextFloat());
-        float y = maxY * (0.1f + 0.8f * random.nextFloat());
+        float x, y;
+        boolean lyricsActive = dreamLyrics != null && dreamLyrics.getVisibility() == View.VISIBLE;
+        if (lyricsActive) {
+            float density = getResources().getDisplayMetrics().density;
+            x = 40 * density;
+            y = 30 * density;
+        } else {
+            int maxX = Math.max(0, parent.getWidth() - content.getWidth());
+            int maxY = Math.max(0, parent.getHeight() - content.getHeight());
+            x = maxX * (0.1f + 0.8f * random.nextFloat());
+            y = maxY * (0.1f + 0.8f * random.nextFloat());
+        }
         content.setX(x);
         content.setY(y);
         if (parent.getWidth() > 0 && parent.getHeight() > 0) {
@@ -218,5 +286,29 @@ public class ClockDream extends DreamService {
         glowColor = color;
         int c = color & 0x00FFFFFF;
         glow.setColors(new int[]{0x40000000 | c, 0x14000000 | c, 0x00000000 | c});
+    }
+
+    private void applyDreamLyricsPlacement(int placement) {
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) dreamLyrics.getLayoutParams();
+        float density = getResources().getDisplayMetrics().density;
+        switch (placement) {
+            case LyricsView.PLACE_LEFT:
+                lp.gravity = Gravity.START;
+                lp.setMarginStart((int) (16 * density));
+                lp.setMarginEnd(0);
+                break;
+            case LyricsView.PLACE_CENTRE:
+                lp.gravity = Gravity.CENTER_HORIZONTAL;
+                lp.setMarginStart(0);
+                lp.setMarginEnd(0);
+                break;
+            default:
+                lp.gravity = Gravity.END;
+                lp.setMarginStart(0);
+                lp.setMarginEnd((int) (16 * density));
+                break;
+        }
+        dreamLyrics.setLayoutParams(lp);
+        dreamLyrics.setPlacement(placement);
     }
 }

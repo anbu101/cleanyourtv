@@ -45,6 +45,19 @@ public final class LauncherSettingsActivity extends Activity {
     private boolean marketTicker;
     private TextView themeChoice;
     private String currentTheme;
+    private TextView lyricsChoice;
+    /** -1 = off, 0 = left, 1 = centre, 2 = right */
+    private int lyricsPlacement;
+    private TextView lyricsFocusChoice;
+    private boolean lyricsFocusDim;
+    private TextView screensaverTimeoutChoice;
+    private int screensaverTimeoutIndex;
+    private static final int[] TIMEOUT_VALUES_MS = {
+        60_000, 2 * 60_000, 5 * 60_000, 10 * 60_000, 15 * 60_000, 30 * 60_000
+    };
+    private static final String[] TIMEOUT_LABELS = {
+        "1 min", "2 min", "5 min", "10 min", "15 min", "30 min"
+    };
     private TextView kidsModeChoice;
     private TextView overlayClockChoice;
     private int columns;
@@ -231,6 +244,42 @@ public final class LauncherSettingsActivity extends Activity {
             }
         });
 
+        lyricsPlacement = choices.getInt("lyrics_placement", -1);
+        lyricsChoice = findViewById(R.id.lyricsChoice);
+        lyricsChoice.setOnClickListener(v -> {
+            // Cycle: Off → Right → Centre → Left → Off
+            lyricsPlacement++;
+            if (lyricsPlacement > 2) lyricsPlacement = -1;
+            choices.edit().putInt("lyrics_placement", lyricsPlacement).apply();
+            setResult(RESULT_OK);
+            refresh();
+        });
+
+        lyricsFocusDim = choices.getBoolean("lyrics_focus_dim", false);
+        lyricsFocusChoice = findViewById(R.id.lyricsFocusChoice);
+        lyricsFocusChoice.setOnClickListener(v -> {
+            lyricsFocusDim = !lyricsFocusDim;
+            choices.edit().putBoolean("lyrics_focus_dim", lyricsFocusDim).apply();
+            setResult(RESULT_OK);
+            refresh();
+        });
+
+        screensaverTimeoutChoice = findViewById(R.id.screensaverTimeoutChoice);
+        int currentTimeout = Settings.System.getInt(
+                getContentResolver(), Settings.System.SCREEN_OFF_TIMEOUT, 300_000);
+        screensaverTimeoutIndex = findTimeoutIndex(currentTimeout);
+        screensaverTimeoutChoice.setOnClickListener(v -> {
+            screensaverTimeoutIndex = (screensaverTimeoutIndex + 1) % TIMEOUT_VALUES_MS.length;
+            try {
+                Settings.System.putInt(getContentResolver(),
+                        Settings.System.SCREEN_OFF_TIMEOUT,
+                        TIMEOUT_VALUES_MS[screensaverTimeoutIndex]);
+            } catch (SecurityException ignored) {
+                Toast.makeText(this, R.string.not_available, Toast.LENGTH_SHORT).show();
+            }
+            refresh();
+        });
+
         overlayClockChoice = findViewById(R.id.overlayClockChoice);
         overlayClockChoice.setOnClickListener(v -> {
             if (!overlayClockEnabled) {
@@ -305,6 +354,11 @@ public final class LauncherSettingsActivity extends Activity {
                 getString(marketTicker ? R.string.on : R.string.off)));
         kidsModeChoice.setText(getString(R.string.kids_mode_state,
                 getString(kidsMode ? R.string.on : R.string.off)));
+        lyricsChoice.setText(getString(R.string.lyrics_state, lyricsDisplayName()));
+        lyricsFocusChoice.setText(getString(R.string.lyrics_focus_state,
+                getString(lyricsFocusDim ? R.string.on : R.string.off)));
+        screensaverTimeoutChoice.setText(getString(R.string.screensaver_timeout_state,
+                TIMEOUT_LABELS[screensaverTimeoutIndex]));
         overlayClockChoice.setText(getString(R.string.overlay_clock_state,
                 getString(overlayClockEnabled ? R.string.on : R.string.off)));
         followThemeChoice.setSelected(!hasOnTvChoices());
@@ -486,6 +540,25 @@ public final class LauncherSettingsActivity extends Activity {
             return true;
         } catch (IOException e) {
             return false;
+        }
+    }
+
+    private int findTimeoutIndex(int ms) {
+        int closest = 2; // default to 5 min
+        int minDist = Integer.MAX_VALUE;
+        for (int i = 0; i < TIMEOUT_VALUES_MS.length; i++) {
+            int dist = Math.abs(TIMEOUT_VALUES_MS[i] - ms);
+            if (dist < minDist) { minDist = dist; closest = i; }
+        }
+        return closest;
+    }
+
+    private String lyricsDisplayName() {
+        switch (lyricsPlacement) {
+            case 0:  return getString(R.string.lyrics_left);
+            case 1:  return getString(R.string.lyrics_centre);
+            case 2:  return getString(R.string.lyrics_right);
+            default: return getString(R.string.lyrics_off);
         }
     }
 

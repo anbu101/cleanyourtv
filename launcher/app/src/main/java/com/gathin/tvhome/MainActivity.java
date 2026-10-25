@@ -110,6 +110,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private int ambientColor = -1;
     private ValueAnimator ambientAnimator;
     private boolean heroShown;
+    private final Runnable heroAutoFade = () -> {
+        if (heroShown) {
+            heroName.animate().alpha(0f).setDuration(400).start();
+        }
+    };
     private boolean animations;
     private boolean advancedEffects;
     private View btnInputs;
@@ -174,6 +179,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private ImageView wallpaperView;
     /** Set when the wallpaper bitmap was handed back to the system; it comes back on resume. */
     private boolean wallpaperReleased;
+    /** Now-playing lyrics overlay. */
+    private LyricsView lyricsView;
+    private NowPlayingListener nowPlayingListener;
+    private LyricsFetcher lyricsFetcher;
+    private List<LyricsFetcher.Line> currentLyrics = Collections.emptyList();
+    private String lyricsTrackKey = "";
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     /** Refreshes the network pill when the connection changes: at boot Wi-Fi often connects after Home is shown. */
@@ -341,6 +352,53 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             boolean canDraw = Build.VERSION.SDK_INT < Build.VERSION_CODES.M
                     || Settings.canDrawOverlays(this);
             if (canDraw) startService(new Intent(this, OverlayClockService.class));
+        }
+
+        // Now-playing lyrics overlay
+        lyricsView = findViewById(R.id.lyrics);
+        SharedPreferences lyricsPrefs = getSharedPreferences(Config.SETTINGS_NAME, MODE_PRIVATE);
+        int lyricsPlacement = lyricsPrefs.getInt("lyrics_placement", -1);
+        lyricsFocusDim = lyricsPrefs.getBoolean("lyrics_focus_dim", false);
+        if (lyricsPlacement >= 0) {
+            applyLyricsPlacement(lyricsPlacement);
+            lyricsFetcher = new LyricsFetcher();
+            nowPlayingListener = new NowPlayingListener(this, new NowPlayingListener.Callback() {
+                @Override
+                public void onTrackChanged(String title, String artist, long durationMs) {
+                    if (title == null || title.isEmpty()) {
+                        currentLyrics = Collections.emptyList();
+                        lyricsTrackKey = "";
+                        lyricsView.setLines(null);
+                        lyricsView.setVisibility(View.GONE);
+                        setLyricsFocus(false);
+                        return;
+                    }
+                    String key = title + "|" + artist;
+                    if (key.equals(lyricsTrackKey)) return;
+                    lyricsTrackKey = key;
+                    lyricsFetcher.fetch(title, artist, durationMs, lines -> {
+                        currentLyrics = lines;
+                        if (lines.isEmpty()) {
+                            lyricsView.setLines(null);
+                            lyricsView.setVisibility(View.GONE);
+                            setLyricsFocus(false);
+                        } else {
+                            lyricsView.setLines(lines);
+                            lyricsView.setVisibility(View.VISIBLE);
+                            setLyricsFocus(true);
+                        }
+                    });
+                }
+                @Override
+                public void onPositionUpdate(long positionMs, boolean playing) {
+                    if (!currentLyrics.isEmpty() && playing) {
+                        lyricsView.setPosition(positionMs);
+                        if (lyricsView.getVisibility() != View.VISIBLE)
+                            lyricsView.setVisibility(View.VISIBLE);
+                    }
+                }
+            });
+            nowPlayingListener.start();
         }
 
         // Start the phone remote-control HTTP server (always on, no user action needed).
@@ -794,6 +852,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        if (nowPlayingListener != null) nowPlayingListener.stop();
+        if (lyricsFetcher != null) lyricsFetcher.shutdown();
         if (weatherFetcher != null) weatherFetcher.stop();
         ConnectivityManager cm = getSystemService(ConnectivityManager.class);
         TvInputManager tim = (TvInputManager) getSystemService(TV_INPUT_SERVICE);
@@ -879,6 +939,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         int color = adapter.ambientColorAt(position);
         float y = dockTopInRoot - 14 * density - 26 * density - heroName.getHeight();
         boolean changed = !label.contentEquals(heroName.getText());
+        handler.removeCallbacks(heroAutoFade);
 
         if (!animations || reducedMotion) {
             // Snap the shelf instead of sliding and fading it: each of those frames repaints the
@@ -931,6 +992,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         } else {
             heroName.setY(y);
         }
+        handler.postDelayed(heroAutoFade, 2000);
     }
 
     /**
@@ -988,6 +1050,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     private void hideHero() {
         if (!heroShown) return;
+        handler.removeCallbacks(heroAutoFade);
         stopAmbientAnimation();
         heroName.animate().cancel();
         ambient.animate().cancel();
@@ -1164,6 +1227,46 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     // ---- top bar ---------------------------------------------------------------------------------
+
+    private boolean lyricsDimmed;
+    private boolean lyricsFocusDim;
+
+    /** Fade non-lyrics children of root to make lyrics the visual focus. */
+    private void setLyricsFocus(boolean dim) {
+        if (!lyricsFocusDim) dim = false;
+        if (dim == lyricsDimmed) return;
+        lyricsDimmed = dim;
+        float target = dim ? 0.18f : 1f;
+        long dur = dim ? 1200L : 400L;
+        for (int i = 0, n = root.getChildCount(); i < n; i++) {
+            View child = root.getChildAt(i);
+            if (child == lyricsView || child == sky || child == weatherView) continue;
+            child.animate().alpha(target).setDuration(dur).start();
+        }
+    }
+
+    private void applyLyricsPlacement(int placement) {
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) lyricsView.getLayoutParams();
+        switch (placement) {
+            case LyricsView.PLACE_LEFT:
+                lp.gravity = Gravity.START;
+                lp.setMarginStart((int) (16 * density));
+                lp.setMarginEnd(0);
+                break;
+            case LyricsView.PLACE_CENTRE:
+                lp.gravity = Gravity.CENTER_HORIZONTAL;
+                lp.setMarginStart(0);
+                lp.setMarginEnd(0);
+                break;
+            default:
+                lp.gravity = Gravity.END;
+                lp.setMarginStart(0);
+                lp.setMarginEnd((int) (16 * density));
+                break;
+        }
+        lyricsView.setLayoutParams(lp);
+        lyricsView.setPlacement(placement);
+    }
 
     private void updateGreeting() {
         if (shamsi) shamsiDate.setText(Shamsi.today());

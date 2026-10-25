@@ -311,6 +311,18 @@
         android:visibility="gone"
         android:importantForAccessibility="no" />
 
+    <!-- Synced lyrics from the currently playing song (Spotify etc.) -->
+    <com.gathin.tvhome.LyricsView
+        android:id="@+id/lyrics"
+        android:layout_width="416dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="end"
+        android:layout_marginTop="100dp"
+        android:layout_marginBottom="50dp"
+        android:layout_marginEnd="16dp"
+        android:visibility="gone"
+        android:importantForAccessibility="no" />
+
     <!-- The single floating glass highlight that springs between tiles. -->
     <com.gathin.tvhome.GlassView
         android:id="@+id/glass"

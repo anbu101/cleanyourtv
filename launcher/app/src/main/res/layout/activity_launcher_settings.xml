@@ -226,6 +226,33 @@
             android:text="@string/settings_section_extras" />
 
         <TextView
+            android:id="@+id/lyricsChoice"
+            style="@style/SettingsRow"
+            android:layout_marginTop="8dp" />
+
+        <TextView
+            style="@style/SettingsHint"
+            android:text="@string/lyrics_hint" />
+
+        <TextView
+            android:id="@+id/lyricsFocusChoice"
+            style="@style/SettingsRow"
+            android:layout_marginTop="8dp" />
+
+        <TextView
+            style="@style/SettingsHint"
+            android:text="@string/lyrics_focus_hint" />
+
+        <TextView
+            android:id="@+id/screensaverTimeoutChoice"
+            style="@style/SettingsRow"
+            android:layout_marginTop="8dp" />
+
+        <TextView
+            style="@style/SettingsHint"
+            android:text="@string/screensaver_timeout_hint" />
+
+        <TextView
             android:id="@+id/overlayClockChoice"
             style="@style/SettingsRow"
             android:layout_marginTop="8dp" />
