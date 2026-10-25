@@ -323,6 +323,57 @@
         android:visibility="gone"
         android:importantForAccessibility="no" />
 
+    <!-- Mini now-playing controls; shown only when music is playing. -->
+    <LinearLayout
+        android:id="@+id/mediaPill"
+        android:layout_width="wrap_content"
+        android:layout_height="36dp"
+        android:layout_gravity="top|end"
+        android:layout_marginEnd="60dp"
+        android:layout_marginTop="120dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:background="@drawable/media_pill_bg"
+        android:paddingStart="6dp"
+        android:paddingEnd="6dp"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/mediaPrev"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:padding="4dp"
+            android:src="@drawable/ic_media_prev"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:focusable="true"
+            android:nextFocusUp="@+id/grid"
+            android:contentDescription="Previous" />
+
+        <ImageView
+            android:id="@+id/mediaPlayPause"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:padding="2dp"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="4dp"
+            android:src="@drawable/ic_media_pause"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:focusable="true"
+            android:nextFocusUp="@+id/grid"
+            android:contentDescription="Play/Pause" />
+
+        <ImageView
+            android:id="@+id/mediaNext"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:padding="4dp"
+            android:src="@drawable/ic_media_next"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:focusable="true"
+            android:nextFocusUp="@+id/grid"
+            android:contentDescription="Next" />
+    </LinearLayout>
+
     <!-- The single floating glass highlight that springs between tiles. -->
     <com.gathin.tvhome.GlassView
         android:id="@+id/glass"

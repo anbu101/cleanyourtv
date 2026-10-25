@@ -185,6 +185,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private LyricsFetcher lyricsFetcher;
     private List<LyricsFetcher.Line> currentLyrics = Collections.emptyList();
     private String lyricsTrackKey = "";
+    private View mediaPill;
+    private ImageView mediaPlayPause;
+    private boolean mediaShown;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     /** Refreshes the network pill when the connection changes: at boot Wi-Fi often connects after Home is shown. */
@@ -354,25 +357,34 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             if (canDraw) startService(new Intent(this, OverlayClockService.class));
         }
 
-        // Now-playing lyrics overlay
+        // Now-playing: lyrics overlay + media pill controls
         lyricsView = findViewById(R.id.lyrics);
+        mediaPill = findViewById(R.id.mediaPill);
+        mediaPlayPause = findViewById(R.id.mediaPlayPause);
         SharedPreferences lyricsPrefs = getSharedPreferences(Config.SETTINGS_NAME, MODE_PRIVATE);
         int lyricsPlacement = lyricsPrefs.getInt("lyrics_placement", -1);
         lyricsFocusDim = lyricsPrefs.getBoolean("lyrics_focus_dim", false);
-        if (lyricsPlacement >= 0) {
+        boolean lyricsOn = lyricsPlacement >= 0;
+        if (lyricsOn) {
             applyLyricsPlacement(lyricsPlacement);
             lyricsFetcher = new LyricsFetcher();
-            nowPlayingListener = new NowPlayingListener(this, new NowPlayingListener.Callback() {
-                @Override
-                public void onTrackChanged(String title, String artist, long durationMs) {
-                    if (title == null || title.isEmpty()) {
+        }
+        nowPlayingListener = new NowPlayingListener(this, new NowPlayingListener.Callback() {
+            @Override
+            public void onTrackChanged(String title, String artist, long durationMs) {
+                if (title == null || title.isEmpty()) {
+                    showMediaPill(false);
+                    if (lyricsOn) {
                         currentLyrics = Collections.emptyList();
                         lyricsTrackKey = "";
                         lyricsView.setLines(null);
                         lyricsView.setVisibility(View.GONE);
                         setLyricsFocus(false);
-                        return;
                     }
+                    return;
+                }
+                showMediaPill(true);
+                if (lyricsOn) {
                     String key = title + "|" + artist;
                     if (key.equals(lyricsTrackKey)) return;
                     lyricsTrackKey = key;
@@ -389,17 +401,23 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                         }
                     });
                 }
-                @Override
-                public void onPositionUpdate(long positionMs, boolean playing) {
-                    if (!currentLyrics.isEmpty() && playing) {
-                        lyricsView.setPosition(positionMs);
-                        if (lyricsView.getVisibility() != View.VISIBLE)
-                            lyricsView.setVisibility(View.VISIBLE);
-                    }
+            }
+            @Override
+            public void onPositionUpdate(long positionMs, boolean playing) {
+                updateMediaPlayPause(playing);
+                if (lyricsOn && !currentLyrics.isEmpty() && playing) {
+                    lyricsView.setPosition(positionMs);
+                    if (lyricsView.getVisibility() != View.VISIBLE)
+                        lyricsView.setVisibility(View.VISIBLE);
                 }
-            });
-            nowPlayingListener.start();
-        }
+                // Pill stays visible while a track exists; hidden only in onTrackChanged(null).
+            }
+        });
+        nowPlayingListener.start();
+        findViewById(R.id.mediaPrev).setOnClickListener(v -> nowPlayingListener.skipPrev());
+        mediaPlayPause.setOnClickListener(v -> nowPlayingListener.playPause());
+        mediaNextBtn = findViewById(R.id.mediaNext);
+        mediaNextBtn.setOnClickListener(v -> nowPlayingListener.skipNext());
 
         // Start the phone remote-control HTTP server (always on, no user action needed).
         if (!RemoteService.running) {
@@ -1234,8 +1252,13 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private boolean lyricsActive;
     private static final long LYRICS_DIM_DELAY = 5000L;
 
+    private View mediaNextBtn;
+
     private final Runnable lyricsDimRunnable = () -> {
-        if (lyricsActive && lyricsFocusDim) applyLyricsDim(true);
+        if (lyricsActive && lyricsFocusDim) {
+            applyLyricsDim(true);
+            if (mediaShown && mediaNextBtn != null) mediaNextBtn.requestFocus();
+        }
     };
 
     /** Called when lyrics appear or disappear. */
@@ -1277,6 +1300,29 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             if (child == lyricsView || child == sky || child == weatherView) continue;
             child.animate().alpha(target).setDuration(dur).start();
         }
+        // Fully hide the hero name during dim so it doesn't ghost behind lyrics.
+        if (dim) {
+            handler.removeCallbacks(heroAutoFade);
+            heroName.animate().alpha(0f).setDuration(300).start();
+        }
+    }
+
+    private void showMediaPill(boolean show) {
+        if (show == mediaShown) return;
+        mediaShown = show;
+        if (show) {
+            mediaPill.setAlpha(0f);
+            mediaPill.setVisibility(View.VISIBLE);
+            mediaPill.animate().alpha(0.8f).setDuration(400).start();
+        } else {
+            mediaPill.animate().alpha(0f).setDuration(300)
+                    .withEndAction(() -> mediaPill.setVisibility(View.GONE)).start();
+        }
+    }
+
+    private void updateMediaPlayPause(boolean playing) {
+        if (mediaPlayPause == null) return;
+        mediaPlayPause.setImageResource(playing ? R.drawable.ic_media_pause : R.drawable.ic_media_play);
     }
 
     private void applyLyricsPlacement(int placement) {

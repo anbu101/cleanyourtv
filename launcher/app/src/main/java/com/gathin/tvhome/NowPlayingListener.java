@@ -39,6 +39,7 @@ final class NowPlayingListener {
 
     private String lastTitle = "";
     private String lastArtist = "";
+    private MediaController activeController;
 
     NowPlayingListener(Context ctx, Callback callback) {
         this.ctx = ctx.getApplicationContext();
@@ -54,6 +55,35 @@ final class NowPlayingListener {
     void stop() {
         running = false;
         handler.removeCallbacks(pollRunnable);
+        activeController = null;
+    }
+
+    void playPause() {
+        MediaController mc = activeController;
+        if (mc == null) return;
+        PlaybackState s = mc.getPlaybackState();
+        if (s != null && s.getState() == PlaybackState.STATE_PLAYING) {
+            mc.getTransportControls().pause();
+        } else {
+            mc.getTransportControls().play();
+        }
+    }
+
+    void skipNext() {
+        MediaController mc = activeController;
+        if (mc != null) mc.getTransportControls().skipToNext();
+    }
+
+    void skipPrev() {
+        MediaController mc = activeController;
+        if (mc != null) mc.getTransportControls().skipToPrevious();
+    }
+
+    boolean isPlaying() {
+        MediaController mc = activeController;
+        if (mc == null) return false;
+        PlaybackState s = mc.getPlaybackState();
+        return s != null && s.getState() == PlaybackState.STATE_PLAYING;
     }
 
     private final Runnable pollRunnable = new Runnable() {
@@ -90,6 +120,7 @@ final class NowPlayingListener {
             }
 
             MediaController mc = controllers.get(0);
+            activeController = mc;
             PlaybackState state = mc.getPlaybackState();
             MediaMetadata meta = mc.getMetadata();
 
