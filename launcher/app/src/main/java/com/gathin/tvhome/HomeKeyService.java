@@ -51,7 +51,11 @@ public class HomeKeyService extends AccessibilityService {
 
     @Override
     protected boolean onKeyEvent(KeyEvent event) {
-        if (event.getKeyCode() == KeyEvent.KEYCODE_HOME) {
+        // Let volume keys pass through immediately so long-press repeat is not delayed.
+        int kc = event.getKeyCode();
+        if (kc == KeyEvent.KEYCODE_VOLUME_UP || kc == KeyEvent.KEYCODE_VOLUME_DOWN
+                || kc == KeyEvent.KEYCODE_VOLUME_MUTE) return false;
+        if (kc == KeyEvent.KEYCODE_HOME) {
             // When the launcher is already in front the system swallows Home — the desk never
             // hears about it. Intercept it here so the desk can scroll back to the top.
             if (!getPackageName().equals(foreground)) return false;

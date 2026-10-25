@@ -873,6 +873,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     @Override
     public void onTileFocused(int position, View card) {
+        onLyricsDimInteraction();
         lastFocused = position;
         lastFocusedKey = adapter.keyAt(position);
         // Tile rect in root coordinates, using layout positions (ignores the scale animation).
@@ -1230,10 +1231,43 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     private boolean lyricsDimmed;
     private boolean lyricsFocusDim;
+    private boolean lyricsActive;
+    private static final long LYRICS_DIM_DELAY = 5000L;
 
-    /** Fade non-lyrics children of root to make lyrics the visual focus. */
-    private void setLyricsFocus(boolean dim) {
-        if (!lyricsFocusDim) dim = false;
+    private final Runnable lyricsDimRunnable = () -> {
+        if (lyricsActive && lyricsFocusDim) applyLyricsDim(true);
+    };
+
+    /** Called when lyrics appear or disappear. */
+    private void setLyricsFocus(boolean active) {
+        lyricsActive = active;
+        if (!lyricsFocusDim) return;
+        handler.removeCallbacks(lyricsDimRunnable);
+        if (active) {
+            handler.postDelayed(lyricsDimRunnable, LYRICS_DIM_DELAY);
+        } else {
+            applyLyricsDim(false);
+        }
+    }
+
+    /** User navigated — undim immediately and restart the idle timer. */
+    private void onLyricsDimInteraction() {
+        if (!lyricsDimmed) {
+            // Still reset the timer so dim doesn't kick in too early.
+            if (lyricsActive && lyricsFocusDim) {
+                handler.removeCallbacks(lyricsDimRunnable);
+                handler.postDelayed(lyricsDimRunnable, LYRICS_DIM_DELAY);
+            }
+            return;
+        }
+        applyLyricsDim(false);
+        if (lyricsActive && lyricsFocusDim) {
+            handler.removeCallbacks(lyricsDimRunnable);
+            handler.postDelayed(lyricsDimRunnable, LYRICS_DIM_DELAY);
+        }
+    }
+
+    private void applyLyricsDim(boolean dim) {
         if (dim == lyricsDimmed) return;
         lyricsDimmed = dim;
         float target = dim ? 0.18f : 1f;
