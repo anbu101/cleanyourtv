@@ -197,10 +197,18 @@ final class LyricsFetcher {
             JSONArray trackList = msg.getJSONObject("body").getJSONArray("track_list");
             if (trackList.length() == 0) return Collections.emptyList();
 
-            // Pick the best match — prefer one with subtitles
+            // Pick the best match — verify the result actually matches
             int trackId = -1;
+            String titleLc = title.toLowerCase();
+            String artistLc = artist.toLowerCase();
             for (int i = 0; i < trackList.length(); i++) {
                 JSONObject t = trackList.getJSONObject(i).getJSONObject("track");
+                String mxmTitle = t.optString("track_name", "").toLowerCase();
+                String mxmArtist = t.optString("artist_name", "").toLowerCase();
+                // Skip results that don't resemble the query
+                if (!mxmTitle.contains(titleLc) && !titleLc.contains(mxmTitle)
+                        && !mxmArtist.contains(artistLc) && !artistLc.contains(mxmArtist))
+                    continue;
                 if (t.optInt("has_subtitles", 0) == 1) {
                     trackId = t.getInt("track_id");
                     break;
