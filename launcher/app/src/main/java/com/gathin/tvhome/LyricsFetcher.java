@@ -19,6 +19,8 @@ import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.json.JSONArray;
+
 /**
  * Fetches time-synced lyrics from <a href="https://lrclib.net">LRCLIB</a> (free, no key).
  * Returns a list of {@link Line} sorted by timestamp; the caller matches the playback position
@@ -67,17 +69,38 @@ final class LyricsFetcher {
         executor.shutdownNow();
     }
 
+    /** Strips Spotify suffixes like " - Hit Track", " (Original Motion Picture Soundtrack)" etc. */
+    private static String cleanTitle(String title) {
+        return title.replaceAll("\\s*[-–]\\s*(Hit Track|Remastered|Bonus Track|Deluxe|Radio Edit).*", "")
+                    .replaceAll("\\s*\\((?:Original |From ).*\\)$", "")
+                    .trim();
+    }
+
     private List<Line> doFetch(String title, String artist, long durationMs) {
-        // Try the exact match endpoint first
+        // 1. LRCLIB exact match
         List<Line> result = fetchGet(title, artist, durationMs);
         if (!result.isEmpty()) return result;
-        // Retry without duration (some tracks have slightly different durations)
+        // 2. LRCLIB without duration
         if (durationMs > 0) {
             result = fetchGet(title, artist, 0);
             if (!result.isEmpty()) return result;
         }
-        // Fall back to search
-        return fetchSearch(title, artist);
+        // 3. LRCLIB search
+        result = fetchSearch(title, artist);
+        if (!result.isEmpty()) return result;
+        // 4. Try with cleaned title (strip Spotify suffixes)
+        String clean = cleanTitle(title);
+        if (!clean.equals(title)) {
+            result = fetchGet(clean, artist, 0);
+            if (!result.isEmpty()) return result;
+            result = fetchSearch(clean, artist);
+            if (!result.isEmpty()) return result;
+        }
+        // 5. Musixmatch fallback (good for Tamil and Indian languages)
+        result = fetchMusixmatch(clean.equals(title) ? title : clean, artist);
+        if (!result.isEmpty()) return result;
+        if (!clean.equals(title)) return fetchMusixmatch(title, artist);
+        return Collections.emptyList();
     }
 
     private List<Line> fetchGet(String title, String artist, long durationMs) {
@@ -103,7 +126,7 @@ final class LyricsFetcher {
                     + URLEncoder.encode(title + " " + artist, "UTF-8");
             String body = httpGet(url);
             if (body == null) return Collections.emptyList();
-            org.json.JSONArray arr = new org.json.JSONArray(body);
+            JSONArray arr = new JSONArray(body);
             for (int i = 0; i < Math.min(arr.length(), 5); i++) {
                 List<Line> lines = extractLyrics(arr.getJSONObject(i));
                 if (!lines.isEmpty()) return lines;
@@ -149,6 +172,105 @@ final class LyricsFetcher {
             if (conn != null) conn.disconnect();
         }
     }
+
+    // ── Musixmatch fallback ────────────────────────────────────────────────
+
+    private static final String MXM_BASE = "https://apic-desktop.musixmatch.com/ws/1.1/";
+    /** Community / desktop token — freely obtainable, no sign-up. */
+    private static final String MXM_TOKEN = "2203269256ff7abcb649269df00e14c833dbf4ddfb5b36a1aae8b0";
+
+    private List<Line> fetchMusixmatch(String title, String artist) {
+        try {
+            // Step 1: search for the track
+            String searchUrl = MXM_BASE + "track.search?format=json"
+                    + "&q_track=" + URLEncoder.encode(title, "UTF-8")
+                    + "&q_artist=" + URLEncoder.encode(artist, "UTF-8")
+                    + "&page_size=3&page=1&s_track_rating=desc"
+                    + "&app_id=web-desktop-app-unstable"
+                    + "&usertoken=" + MXM_TOKEN;
+            String body = httpGet(searchUrl);
+            if (body == null) return Collections.emptyList();
+
+            JSONObject msg = new JSONObject(body).getJSONObject("message");
+            if (msg.getJSONObject("header").getInt("status_code") != 200)
+                return Collections.emptyList();
+            JSONArray trackList = msg.getJSONObject("body").getJSONArray("track_list");
+            if (trackList.length() == 0) return Collections.emptyList();
+
+            // Pick the best match — prefer one with subtitles
+            int trackId = -1;
+            for (int i = 0; i < trackList.length(); i++) {
+                JSONObject t = trackList.getJSONObject(i).getJSONObject("track");
+                if (t.optInt("has_subtitles", 0) == 1) {
+                    trackId = t.getInt("track_id");
+                    break;
+                }
+                if (trackId < 0) trackId = t.getInt("track_id");
+            }
+            if (trackId < 0) return Collections.emptyList();
+            Log.d(TAG, "MXM track_id=" + trackId);
+
+            // Step 2: get synced subtitles
+            List<Line> lines = fetchMxmSubtitles(trackId);
+            if (!lines.isEmpty()) return lines;
+
+            // Step 3: fall back to plain lyrics
+            return fetchMxmPlain(trackId);
+        } catch (Exception e) {
+            Log.w(TAG, "fetchMusixmatch: " + e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
+    private List<Line> fetchMxmSubtitles(int trackId) {
+        try {
+            String url = MXM_BASE + "track.subtitle.get?format=json"
+                    + "&track_id=" + trackId
+                    + "&subtitle_format=lrc"
+                    + "&app_id=web-desktop-app-unstable"
+                    + "&usertoken=" + MXM_TOKEN;
+            String body = httpGet(url);
+            if (body == null) return Collections.emptyList();
+            JSONObject msg = new JSONObject(body).getJSONObject("message");
+            if (msg.getJSONObject("header").getInt("status_code") != 200)
+                return Collections.emptyList();
+            String lrc = msg.getJSONObject("body").getJSONObject("subtitle")
+                    .getString("subtitle_body");
+            List<Line> lines = parseLrc(lrc);
+            if (!lines.isEmpty()) Log.d(TAG, "MXM synced: " + lines.size() + " lines");
+            return lines;
+        } catch (Exception e) {
+            Log.w(TAG, "mxmSubtitles: " + e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
+    private List<Line> fetchMxmPlain(int trackId) {
+        try {
+            String url = MXM_BASE + "track.lyrics.get?format=json"
+                    + "&track_id=" + trackId
+                    + "&app_id=web-desktop-app-unstable"
+                    + "&usertoken=" + MXM_TOKEN;
+            String body = httpGet(url);
+            if (body == null) return Collections.emptyList();
+            JSONObject msg = new JSONObject(body).getJSONObject("message");
+            if (msg.getJSONObject("header").getInt("status_code") != 200)
+                return Collections.emptyList();
+            String plain = msg.getJSONObject("body").getJSONObject("lyrics")
+                    .getString("lyrics_body");
+            // Musixmatch free plain lyrics are truncated with a notice — strip it
+            int notice = plain.indexOf("******* This Lyrics is NOT");
+            if (notice > 0) plain = plain.substring(0, notice).trim();
+            List<Line> lines = parsePlain(plain);
+            if (!lines.isEmpty()) Log.d(TAG, "MXM plain: " + lines.size() + " lines");
+            return lines;
+        } catch (Exception e) {
+            Log.w(TAG, "mxmPlain: " + e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
+    // ── LRC parsing ──────────────────────────────────────────────────────
 
     private static List<Line> parseLrc(String lrc) {
         List<Line> lines = new ArrayList<>();

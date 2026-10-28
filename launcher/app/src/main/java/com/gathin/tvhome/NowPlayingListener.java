@@ -22,7 +22,7 @@ import java.util.List;
 final class NowPlayingListener {
 
     private static final String TAG = "TvHome.NowPlaying";
-    private static final long POLL_MS = 2_000L;
+    private static final long POLL_MS = 1_000L;
 
     interface Callback {
         /** Called on the main thread. All fields may be null/0 when nothing is playing. */
@@ -137,6 +137,11 @@ final class NowPlayingListener {
 
                 if (title == null) title = "";
                 if (artist == null) artist = "";
+                // Filter out Spotify ads
+                if ("Spotify".equals(artist) || title.startsWith("Listen to music")) {
+                    title = "";
+                    artist = "";
+                }
                 Log.w(TAG, "got title=[" + title + "] artist=[" + artist
                         + "] last=[" + lastTitle + "] dur=" + duration);
 
