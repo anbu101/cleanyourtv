@@ -49,7 +49,7 @@ if [ -d "$THEME/wallpapers" ]; then
     $ADB push "$THEME/wallpapers/." "$DIR/wallpapers/"
     # Copy the first image as wallpaper.jpg so Home shows one immediately
     if [ ! -f "$THEME/wallpaper.jpg" ]; then
-        first=$(ls "$THEME/wallpapers/"*.jpg "$THEME/wallpapers/"*.png "$THEME/wallpapers/"*.webp 2>/dev/null | head -1)
+        first=$(find "$THEME/wallpapers" -maxdepth 1 -type f \( -name '*.jpg' -o -name '*.png' -o -name '*.webp' \) | sort | head -1)
         [ -n "${first:-}" ] && $ADB push "$first" "$DIR/wallpaper.jpg"
     fi
 else
