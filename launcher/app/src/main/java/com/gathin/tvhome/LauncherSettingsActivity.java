@@ -539,10 +539,9 @@ public final class LauncherSettingsActivity extends Activity {
         } else {
             String assetDir = "themes/" + name;
             if (!copyAsset(assetDir + "/config.json", configFile)) return;
-            // Wallpapers are not bundled in the APK (size limit). Try the external
-            // wallpapers/ folder (pushed by theme.sh), then a single wallpaper.jpg
-            // already on disk. If neither exists, clear any stale wallpaper.
-            if (!pickExternalWallpaper(dir, wallpaperFile)) {
+            // Wallpapers are not bundled in the APK (size limit). Look in the
+            // per-theme folder (theme-wallpapers/<name>/) pushed by theme.sh.
+            if (!pickExternalWallpaper(new File(dir, "theme-wallpapers/" + name), wallpaperFile)) {
                 wallpaperFile.delete();
             }
         }
@@ -566,11 +565,10 @@ public final class LauncherSettingsActivity extends Activity {
     }
 
     /**
-     * Picks a random image from the external wallpapers/ folder and copies it as wallpaper.jpg.
-     * Wallpapers are pushed to the device by theme.sh, not bundled in the APK.
+     * Picks a random image from a wallpapers folder and copies it as wallpaper.jpg.
+     * The folder is theme-wallpapers/&lt;name&gt;/ pushed to the device by theme.sh.
      */
-    private static boolean pickExternalWallpaper(File dir, File dest) {
-        File wallDir = new File(dir, "wallpapers");
+    private static boolean pickExternalWallpaper(File wallDir, File dest) {
         File[] files = wallDir.isDirectory() ? wallDir.listFiles() : null;
         if (files == null) return false;
         java.util.List<File> images = new java.util.ArrayList<>();
@@ -598,14 +596,18 @@ public final class LauncherSettingsActivity extends Activity {
     }
 
     /**
-     * Called from MainActivity on each Home press: if the external wallpapers/ folder has
-     * multiple images, rotate to a different one.
+     * Called from MainActivity on each Home press: if the active theme has multiple
+     * wallpapers in theme-wallpapers/&lt;name&gt;/, rotate to a different one.
      */
     static void rotateWallpaper(android.content.Context ctx) {
         File dir = Config.dir(ctx);
         if (dir == null) return;
+        android.content.SharedPreferences prefs = ctx.getSharedPreferences(Config.SETTINGS_NAME,
+                android.content.Context.MODE_PRIVATE);
+        String theme = prefs.getString("active_theme", "default");
+        if ("default".equals(theme)) return;
         File dest = new File(dir, Config.WALLPAPER_NAME);
-        File wallDir = new File(dir, "wallpapers");
+        File wallDir = new File(dir, "theme-wallpapers/" + theme);
         File[] files = wallDir.isDirectory() ? wallDir.listFiles() : null;
         if (files == null) return;
         java.util.List<File> images = new java.util.ArrayList<>();

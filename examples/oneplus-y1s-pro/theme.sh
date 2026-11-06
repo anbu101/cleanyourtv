@@ -43,17 +43,19 @@ if [ -f "$THEME/wallpaper.jpg" ]; then
 else
     $ADB shell "rm -f $DIR/wallpaper.jpg"
 fi
-# Push wallpapers/ folder for rotation support
+# Push wallpapers to per-theme folder for rotation support
+TNAME=$(basename "$THEME")
 if [ -d "$THEME/wallpapers" ]; then
-    $ADB shell "mkdir -p $DIR/wallpapers"
-    $ADB push "$THEME/wallpapers/." "$DIR/wallpapers/"
+    $ADB shell "mkdir -p $DIR/theme-wallpapers/$TNAME"
+    $ADB push "$THEME/wallpapers/." "$DIR/theme-wallpapers/$TNAME/"
     # Copy the first image as wallpaper.jpg so Home shows one immediately
     if [ ! -f "$THEME/wallpaper.jpg" ]; then
         first=$(find "$THEME/wallpapers" -maxdepth 1 -type f \( -name '*.jpg' -o -name '*.png' -o -name '*.webp' \) | sort | head -1)
         [ -n "${first:-}" ] && $ADB push "$first" "$DIR/wallpaper.jpg"
     fi
-else
-    $ADB shell "rm -rf $DIR/wallpapers"
+elif [ -f "$THEME/wallpaper.jpg" ]; then
+    $ADB shell "mkdir -p $DIR/theme-wallpapers/$TNAME"
+    $ADB push "$THEME/wallpaper.jpg" "$DIR/theme-wallpapers/$TNAME/wallpaper.jpg"
 fi
 
 restart
