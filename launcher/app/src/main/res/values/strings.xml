@@ -174,6 +174,26 @@
     <string name="lyrics_hint">Shows synced song lyrics on the home screen when music is playing in the background.</string>
     <string name="lyrics_focus_state">Lyrics focus dim: %1$s</string>
     <string name="lyrics_focus_hint">Fades the clock, dock and buttons when lyrics are playing, so the lyrics stand out.</string>
+    <!-- App Library -->
+    <string name="app_library">App library</string>
+    <string name="library_empty">No launchable apps found</string>
+    <string name="library_on_home">On Home</string>
+    <string name="library_add_home">Add to Home</string>
+    <string name="library_remove_shortcut">Remove from Home</string>
+    <string name="library_open">Open</string>
+    <string name="library_app_info">App info</string>
+    <string name="library_save_failed">Could not save the shortcut</string>
+    <string name="library_recent">New · Add to Home</string>
+    <string name="library_hint_add">Press to add to Home · Hold for options</string>
+    <string name="library_hint_open">Press to open · Hold for options</string>
+    <plurals name="library_app_count">
+        <item quantity="one">%1$d app</item>
+        <item quantity="other">%1$d apps</item>
+    </plurals>
+    <!-- Festival skins -->
+    <string name="festival_dussehra_greeting">Happy Dussehra</string>
+    <string name="festival_diwali_greeting">Happy Diwali</string>
+    <string name="festival_halloween_greeting">Happy Halloween</string>
     <string name="lyrics_off">Off</string>
     <string name="lyrics_left">Left</string>
     <string name="lyrics_centre">Centre</string>

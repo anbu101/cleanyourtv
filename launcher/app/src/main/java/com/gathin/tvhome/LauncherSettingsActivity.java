@@ -472,32 +472,51 @@ public final class LauncherSettingsActivity extends Activity {
 
     // ── Theme picker ────────────────────────────────────────────────────────
 
-    private static final String[][] THEMES = {
-        { "default",     "theme_default" },
-        { "aurora",      "theme_aurora" },
-        { "six-columns", "theme_six_columns" },
+    private static final String[] THEME_KEYS = {
+        "default", "aerial", "aurora", "blocky", "christmas", "cinematic",
+        "dock-glass", "dussehra", "glass", "halloween", "minimal",
+        "nature-calm", "red-rain", "retro", "ruska", "scenes",
+        "six-columns", "stockholm", "storm", "sweden", "weeb"
     };
 
     private String themeDisplayName(String key) {
         switch (key) {
+            case "aerial":      return "Aerial";
             case "aurora":      return getString(R.string.theme_aurora);
+            case "blocky":      return "Blocky";
+            case "christmas":   return "Christmas";
+            case "cinematic":   return "Cinematic";
+            case "dock-glass":  return "Dock Glass";
+            case "dussehra":    return "Dussehra";
+            case "glass":       return "Glass";
+            case "halloween":   return "Halloween";
+            case "minimal":     return "Minimal";
+            case "nature-calm": return "Nature Calm";
+            case "red-rain":    return "Red Rain";
+            case "retro":       return "Retro";
+            case "ruska":       return "Ruska";
+            case "scenes":      return "Scenes";
             case "six-columns": return getString(R.string.theme_six_columns);
+            case "stockholm":   return "Stockholm";
+            case "storm":       return "Storm";
+            case "sweden":      return "Sweden";
+            case "weeb":        return "Weeb";
             default:            return getString(R.string.theme_default);
         }
     }
 
     private void showThemeDialog() {
-        String[] labels = new String[THEMES.length];
+        String[] labels = new String[THEME_KEYS.length];
         int checked = 0;
-        for (int i = 0; i < THEMES.length; i++) {
-            labels[i] = themeDisplayName(THEMES[i][0]);
-            if (THEMES[i][0].equals(currentTheme)) checked = i;
+        for (int i = 0; i < THEME_KEYS.length; i++) {
+            labels[i] = themeDisplayName(THEME_KEYS[i]);
+            if (THEME_KEYS[i].equals(currentTheme)) checked = i;
         }
         new AlertDialog.Builder(this)
             .setTitle(R.string.settings_section_display)
             .setSingleChoiceItems(labels, checked, (dialog, which) -> {
                 dialog.dismiss();
-                String picked = THEMES[which][0];
+                String picked = THEME_KEYS[which];
                 if (picked.equals(currentTheme)) return;
                 applyTheme(picked);
             })
@@ -520,8 +539,11 @@ public final class LauncherSettingsActivity extends Activity {
         } else {
             String assetDir = "themes/" + name;
             if (!copyAsset(assetDir + "/config.json", configFile)) return;
+            // Try single wallpaper.jpg first, then pick a random image from wallpapers/ folder
             if (!copyAsset(assetDir + "/wallpaper.jpg", wallpaperFile)) {
-                wallpaperFile.delete();
+                if (!copyRandomWallpaper(assetDir + "/wallpapers", wallpaperFile)) {
+                    wallpaperFile.delete();
+                }
             }
         }
         currentTheme = name;
@@ -540,6 +562,57 @@ public final class LauncherSettingsActivity extends Activity {
             return true;
         } catch (IOException e) {
             return false;
+        }
+    }
+
+    /** Picks a random image from an assets subfolder and copies it as the wallpaper. */
+    private boolean copyRandomWallpaper(String assetsDir, File dest) {
+        try {
+            String[] files = getAssets().list(assetsDir);
+            if (files == null || files.length == 0) return false;
+            java.util.List<String> images = new java.util.ArrayList<>();
+            for (String f : files) {
+                String lc = f.toLowerCase(java.util.Locale.ROOT);
+                if (lc.endsWith(".jpg") || lc.endsWith(".jpeg") || lc.endsWith(".png") || lc.endsWith(".webp"))
+                    images.add(f);
+            }
+            if (images.isEmpty()) return false;
+            String pick = images.get(new java.util.Random().nextInt(images.size()));
+            return copyAsset(assetsDir + "/" + pick, dest);
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    /**
+     * Called from MainActivity on each restart: if the active theme has multiple wallpapers,
+     * rotate to a different one.
+     */
+    static void rotateWallpaper(android.content.Context ctx) {
+        android.content.SharedPreferences prefs = ctx.getSharedPreferences(Config.SETTINGS_NAME,
+                android.content.Context.MODE_PRIVATE);
+        String theme = prefs.getString("active_theme", "default");
+        if ("default".equals(theme)) return;
+        try {
+            String dir = "themes/" + theme + "/wallpapers";
+            String[] files = ctx.getAssets().list(dir);
+            if (files == null || files.length < 2) return; // no rotation needed
+            java.util.List<String> images = new java.util.ArrayList<>();
+            for (String f : files) {
+                String lc = f.toLowerCase(java.util.Locale.ROOT);
+                if (lc.endsWith(".jpg") || lc.endsWith(".jpeg") || lc.endsWith(".png") || lc.endsWith(".webp"))
+                    images.add(f);
+            }
+            if (images.size() < 2) return;
+            String pick = images.get(new java.util.Random().nextInt(images.size()));
+            File dest = new File(Config.dir(ctx), Config.WALLPAPER_NAME);
+            try (InputStream in = ctx.getAssets().open(dir + "/" + pick);
+                 FileOutputStream out = new FileOutputStream(dest)) {
+                byte[] buf = new byte[8192];
+                int n;
+                while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+            }
+        } catch (IOException ignored) {
         }
     }
 

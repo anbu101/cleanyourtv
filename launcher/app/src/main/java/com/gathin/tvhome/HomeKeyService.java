@@ -28,6 +28,7 @@ public class HomeKeyService extends AccessibilityService {
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
+        ServiceRepair.connected(this, getClass());
         settingsScancodes = getResources().getIntArray(R.array.settings_key_scancodes);
         settingsKeycodes = getResources().getIntArray(R.array.settings_key_keycodes);
         if (getResources().getBoolean(R.bool.gamepad_passthrough) && gamepads == null) {
@@ -38,6 +39,7 @@ public class HomeKeyService extends AccessibilityService {
 
     @Override
     public void onDestroy() {
+        ServiceRepair.disconnected(this, getClass());
         if (gamepads != null) { gamepads.stop(); gamepads = null; }
         super.onDestroy();
     }

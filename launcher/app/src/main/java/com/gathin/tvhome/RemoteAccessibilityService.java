@@ -28,6 +28,7 @@ public final class RemoteAccessibilityService extends AccessibilityService {
     @Override
     protected void onServiceConnected() {
         instance = this;
+        ServiceRepair.connected(this, getClass());
         Log.i(TAG, "connected");
     }
 
@@ -40,6 +41,7 @@ public final class RemoteAccessibilityService extends AccessibilityService {
     @Override
     public void onDestroy() {
         instance = null;
+        ServiceRepair.disconnected(this, getClass());
         Log.i(TAG, "disconnected");
         super.onDestroy();
     }

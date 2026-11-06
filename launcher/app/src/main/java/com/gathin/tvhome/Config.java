@@ -76,6 +76,12 @@ final class Config {
     final File wallpaper;
     /** Whether the overlay file was present and parsed. */
     final boolean overlayApplied;
+    /** The active festival skin parsed from config.json, or {@link Festival#NONE}. */
+    final Festival festival;
+    /** Dock band opacity, 0–100; -1 means "use the on-TV choice" (SharedPreferences). */
+    final int dockOpacity;
+    /** Fade the non-dock rows towards the bottom so tiles don't end with a hard edge. */
+    final boolean fadeRows;
 
     private Config(List<String> dockApps, List<String> hiddenApps, String liveTvPackage, String liveTvAction,
                    String sourcePanelService, String sourcePanelAction, String inputAction,
@@ -83,7 +89,8 @@ final class Config {
                    boolean shamsiDate, boolean moduleCards, boolean reducedMotion, String vpnApp,
                    boolean showHomeSettingsShortcut, boolean weatherBg, Set<String> allowedWeatherScenes, int tickerMode,
                    boolean cricketLiveScore, boolean marketTicker, boolean kidsMode, boolean overlayClockEnabled,
-                   int backgroundColor, int skyIntensity, File wallpaper, boolean overlayApplied) {
+                   int backgroundColor, int skyIntensity, File wallpaper, boolean overlayApplied,
+                   Festival festival, int dockOpacity, boolean fadeRows) {
         this.dockApps = Collections.unmodifiableList(dockApps);
         this.hiddenApps = Collections.unmodifiableList(hiddenApps);
         this.liveTvPackage = liveTvPackage;
@@ -111,6 +118,9 @@ final class Config {
         this.skyIntensity = skyIntensity;
         this.wallpaper = wallpaper;
         this.overlayApplied = overlayApplied;
+        this.festival = festival;
+        this.dockOpacity = dockOpacity;
+        this.fadeRows = fadeRows;
     }
 
     /** The folder the theme tools push into; null when external storage is unavailable. */
@@ -163,6 +173,22 @@ final class Config {
             homeSettings = bool(json, "show_home_settings_shortcut", homeSettings);
             background = color(json, "background_color", background);
             skyIntensity = integer(json, "sky_intensity", skyIntensity, 0, 100);
+        }
+        int dockOpacity = -1;
+        boolean fadeRows = false;
+        if (json != null) {
+            dockOpacity = integer(json, "dock_opacity", dockOpacity, -1, 100);
+            fadeRows = bool(json, "fade_rows", fadeRows);
+        }
+        // Festival skin from config.json
+        Festival festival = Festival.NONE;
+        if (json != null) {
+            String festivalName = string(json, "festival", "");
+            if (festivalName.isEmpty()) festivalName = string(json, "seasonal_skin", "");
+            String festivalUntil = string(json, "festival_until", "");
+            String festivalGreeting = string(json, "greeting", "");
+            String festivalAccent = string(json, "accent_color", "");
+            festival = Festival.parse(festivalName, festivalUntil, festivalGreeting, festivalAccent);
         }
         // A theme push or reset invalidates choices made on the TV. On first use, remember the
         // current theme without clearing choices from an older launcher version.
@@ -221,7 +247,8 @@ final class Config {
                 Math.max(1, columns), Math.max(0, rowsBelow), animations, advancedEffects,
                 shamsi, moduleCards, reducedMotion, vpn, homeSettings, weatherBg, allowedScenes,
                 tickerMode, cricketLiveScore, marketTicker, kidsMode, overlayClockEnabled,
-                background, Math.max(0, Math.min(100, skyIntensity)), wallpaper, applied);
+                background, Math.max(0, Math.min(100, skyIntensity)), wallpaper, applied, festival,
+                dockOpacity, fadeRows);
     }
 
     private static void syncThemeChoices(SharedPreferences choices, File dir, File config) {

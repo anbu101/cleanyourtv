@@ -86,6 +86,19 @@
             android:excludeFromRecents="true"
             android:screenOrientation="landscape" />
 
+        <!-- Answers the system's com.android.tv.action.VIEW_INPUTS to show our input switcher.
+             Disabled by default; enable via ADB when handle_view_inputs is needed. -->
+        <activity
+            android:name=".InputsRequestActivity"
+            android:exported="true"
+            android:enabled="false"
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="com.android.tv.action.VIEW_INPUTS" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
         <!-- Home button for remotes that send KEYCODE_ALL_APPS (Xiaomi). Opt-in: HOME_KEY_SERVICE=1
              build-and-install.sh; see HomeKeyService. -->
         <service
@@ -148,6 +161,14 @@
             android:name=".RemoteService"
             android:exported="false"
             android:foregroundServiceType="dataSync|mediaProjection" />
+
+        <!-- Theme files: lets tools/theme.sh write config.json and wallpapers via content provider.
+             WRITE_SECURE_SETTINGS: the adb shell has it, ordinary apps don't. -->
+        <provider
+            android:name=".ThemeProvider"
+            android:authorities="${applicationId}.theme"
+            android:exported="true"
+            android:permission="android.permission.WRITE_SECURE_SETTINGS" />
 
         <!-- FileProvider: lets the cast endpoint share saved photos/videos with media players. -->
         <provider

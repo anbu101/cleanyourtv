@@ -301,6 +301,11 @@ public class AppAdapter extends RecyclerView.Adapter<AppAdapter.Holder> {
         return items.size();
     }
 
+    boolean containsPackage(String pkg) {
+        for (Entry e : items) if (e.pkg.equals(pkg)) return true;
+        return false;
+    }
+
     @Override
     public long getItemId(int position) {
         return items.get(position).component.flattenToShortString().hashCode();

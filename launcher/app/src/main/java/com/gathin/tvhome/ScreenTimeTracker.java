@@ -47,9 +47,16 @@ public final class ScreenTimeTracker {
         rollIfNewDay();
     }
 
-    /** One-time cleanup: discard any day bucket that exceeds 20 hours (corrupt data). */
+    /** Clears data accumulated by buggy earlier versions; bumped when the storage format changes. */
+    private static final int SANITIZE_VERSION = 2;
+
     private void sanitize() {
-        // 20h is generous — a TV realistically isn't on for more than that in a day.
+        int ver = prefs.getInt("sanitize_version", 0);
+        if (ver < SANITIZE_VERSION) {
+            // Earlier versions could accumulate corrupt multi-day totals. Start fresh.
+            prefs.edit().clear().putInt("sanitize_version", SANITIZE_VERSION).apply();
+            return;
+        }
         final long SANE_MAX = 20L * 60 * 60 * 1000;
         SharedPreferences.Editor ed = null;
         long today = prefs.getLong(KEY_TODAY, 0);
@@ -138,23 +145,46 @@ public final class ScreenTimeTracker {
         long sessionStart = prefs.getLong(KEY_SESSION, 0);
         long oldToday = prefs.getLong(KEY_TODAY, 0);
         if (sessionStart > 0) {
-            // Cap the stale session to at most 24h to prevent corruption when the
-            // process was killed without screenOff() (crash, APK install, force-stop).
             long elapsed = Math.max(0, Math.min(System.currentTimeMillis() - sessionStart, MAX_DAY_MS));
             oldToday += elapsed;
-            ed.putLong(KEY_SESSION, System.currentTimeMillis()); // start new session
+            ed.putLong(KEY_SESSION, System.currentTimeMillis());
         }
-        // Cap today's total to 24h
         oldToday = Math.max(0, Math.min(oldToday, MAX_DAY_MS));
-        // Rotate history buckets: day_5=day_4 … day_0=oldToday
-        for (int i = HISTORY - 1; i > 0; i--) {
-            long prev = prefs.getLong("day_" + (i - 1), 0);
-            ed.putLong("day_" + i, Math.max(0, Math.min(prev, MAX_DAY_MS)));
+
+        // How many days have passed since the stored date?
+        int gap = daysBetween(stored, today);
+
+        // Rotate history buckets, inserting zeros for skipped days.
+        // gap=1 is normal (yesterday); gap>1 means the TV was off for multiple days.
+        for (int i = HISTORY - 1; i >= 0; i--) {
+            int src = i - gap;  // which old bucket feeds this slot
+            if (src == -1) {
+                // This slot gets the old "today" value
+                ed.putLong("day_" + i, oldToday);
+            } else if (src >= 0 && src < HISTORY) {
+                long prev = prefs.getLong("day_" + src, 0);
+                ed.putLong("day_" + i, Math.max(0, Math.min(prev, MAX_DAY_MS)));
+            } else {
+                // Skipped day or out-of-range — zero
+                ed.putLong("day_" + i, 0);
+            }
         }
-        ed.putLong("day_0", oldToday);
         ed.putLong(KEY_TODAY, 0);
         ed.putString(KEY_DATE, today);
         ed.apply();
+    }
+
+    /** Returns the number of days between two yyyy-MM-dd strings, or 1 if unparseable. */
+    private static int daysBetween(String from, String to) {
+        if (from == null || to == null) return 1;
+        try {
+            long fromMs = DATE_FMT.parse(from).getTime();
+            long toMs = DATE_FMT.parse(to).getTime();
+            int days = (int) ((toMs - fromMs) / (24L * 60 * 60 * 1000));
+            return Math.max(1, days);
+        } catch (Exception e) {
+            return 1;
+        }
     }
 
     private static String fmt(long ms) {

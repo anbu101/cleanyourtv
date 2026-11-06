@@ -171,6 +171,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private boolean rebuildOnResume = true;
     /** The Inputs or Module cards dropdown while one is open, so onPause can close it. */
     private PopupWindow openPopup;
+    private AppLibraryDialog appLibrary;
     /** Draws the dock band; kept so its colour can follow the wallpaper. */
     private DockDecoration dockDecoration;
     /** The wallpaper file on the TV; null until something asks for it. */
@@ -256,7 +257,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         setContentView(R.layout.activity_main);
         density = getResources().getDisplayMetrics().density;
         // config.xml, overlaid by config.json from a pushed theme (see Config and tools/theme.sh).
+        LauncherSettingsActivity.rotateWallpaper(this);
         Config cfg = Config.load(this);
+        ServiceRepair.restore(this);
         COLUMNS = cfg.columns;
         animations = cfg.animations;
         advancedEffects = cfg.animations && cfg.advancedEffects;
@@ -441,8 +444,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         grid.setHasFixedSize(true);
         grid.setItemAnimator(null);
         dockDecoration = new DockDecoration(COLUMNS, density);
-        dockDecoration.setOpacity(getSharedPreferences(Config.SETTINGS_NAME, MODE_PRIVATE)
-                .getInt("dock_opacity", 100));
+        int dockOp = cfg.dockOpacity >= 0 ? cfg.dockOpacity
+                : getSharedPreferences(Config.SETTINGS_NAME, MODE_PRIVATE).getInt("dock_opacity", 100);
+        dockDecoration.setOpacity(dockOp);
         grid.addItemDecoration(dockDecoration);
         TopFade.attach(grid, 48 * density);
         if (animations) {
@@ -657,6 +661,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         if (intent == null || !intent.hasCategory(Intent.CATEGORY_HOME)) return;
+        LauncherSettingsActivity.rotateWallpaper(this);
+        applyWallpaper();
         scrollToTop();
         rebuildOnResume = true;
     }
@@ -1661,11 +1667,24 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         PopupWindow popup = glassPopup(panel, (int) (200 * density));
         addSettingsMenuRow(rows, popup, R.string.launcher_settings, () -> startActivityForResult(
                 new Intent(this, LauncherSettingsActivity.class), LAUNCHER_SETTINGS_REQUEST));
+        addSettingsMenuRow(rows, popup, R.string.app_library, this::openAppLibrary);
         if (moduleCards) addSettingsMenuRow(rows, popup, R.string.module_cards, this::showModuleCards);
         panel.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
         popup.setWidth(Math.max((int) (200 * density), panel.getMeasuredWidth()));
         dropIn(popup, panel, anchor, Gravity.END);
         rows.getChildAt(0).requestFocus();
+    }
+
+    private void openAppLibrary() {
+        if (appLibrary != null) appLibrary.close();
+        if (openPopup != null) openPopup.dismiss();
+        appLibrary = new AppLibraryDialog(this, animations, reducedMotion,
+                false, true, adapter::containsPackage,
+                () -> reloadApps(false),
+                () -> { appLibrary = null; openPopup = null; },
+                new java.util.HashSet<>(Collections.singletonList(getPackageName())));
+        openPopup = appLibrary.popup;
+        appLibrary.show();
     }
 
     private void addSettingsMenuRow(LinearLayout rows, PopupWindow popup, int title, Runnable action) {

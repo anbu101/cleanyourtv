@@ -30,4 +30,7 @@ adb -s "$TV:5555" shell cmd package compile -m speed -f com.gathin.tvhome
 # Re-assert Home preference (reinstall clears it on some firmware)
 adb -s "$TV:5555" shell cmd package set-home-activity --user 0 com.gathin.tvhome/.MainActivity
 
+# Grant WRITE_SECURE_SETTINGS so ServiceRepair can restore accessibility services after force-stop
+adb -s "$TV:5555" shell pm grant com.gathin.tvhome android.permission.WRITE_SECURE_SETTINGS 2>/dev/null || true
+
 echo "Done. Press Home on the remote."
