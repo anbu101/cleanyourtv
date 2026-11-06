@@ -27,7 +27,7 @@ restart() {
 }
 
 if [ "${1:-}" = "--reset" ]; then
-    $ADB shell "rm -f $DIR/config.json $DIR/wallpaper.jpg"
+    $ADB shell "rm -f $DIR/config.json $DIR/wallpaper.jpg && rm -rf $DIR/wallpapers"
     restart
     echo "Theme reset to built-in config.xml."
     exit 0
@@ -42,6 +42,18 @@ if [ -f "$THEME/wallpaper.jpg" ]; then
     $ADB push "$THEME/wallpaper.jpg" "$DIR/wallpaper.jpg"
 else
     $ADB shell "rm -f $DIR/wallpaper.jpg"
+fi
+# Push wallpapers/ folder for rotation support
+if [ -d "$THEME/wallpapers" ]; then
+    $ADB shell "mkdir -p $DIR/wallpapers"
+    $ADB push "$THEME/wallpapers/." "$DIR/wallpapers/"
+    # Copy the first image as wallpaper.jpg so Home shows one immediately
+    if [ ! -f "$THEME/wallpaper.jpg" ]; then
+        first=$(ls "$THEME/wallpapers/"*.jpg "$THEME/wallpapers/"*.png "$THEME/wallpapers/"*.webp 2>/dev/null | head -1)
+        [ -n "${first:-}" ] && $ADB push "$first" "$DIR/wallpaper.jpg"
+    fi
+else
+    $ADB shell "rm -rf $DIR/wallpapers"
 fi
 
 restart

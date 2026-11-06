@@ -539,11 +539,11 @@ public final class LauncherSettingsActivity extends Activity {
         } else {
             String assetDir = "themes/" + name;
             if (!copyAsset(assetDir + "/config.json", configFile)) return;
-            // Try single wallpaper.jpg first, then pick a random image from wallpapers/ folder
-            if (!copyAsset(assetDir + "/wallpaper.jpg", wallpaperFile)) {
-                if (!copyRandomWallpaper(assetDir + "/wallpapers", wallpaperFile)) {
-                    wallpaperFile.delete();
-                }
+            // Wallpapers are not bundled in the APK (size limit). Try the external
+            // wallpapers/ folder (pushed by theme.sh), then a single wallpaper.jpg
+            // already on disk. If neither exists, clear any stale wallpaper.
+            if (!pickExternalWallpaper(dir, wallpaperFile)) {
+                wallpaperFile.delete();
             }
         }
         currentTheme = name;
@@ -565,55 +565,59 @@ public final class LauncherSettingsActivity extends Activity {
         }
     }
 
-    /** Picks a random image from an assets subfolder and copies it as the wallpaper. */
-    private boolean copyRandomWallpaper(String assetsDir, File dest) {
-        try {
-            String[] files = getAssets().list(assetsDir);
-            if (files == null || files.length == 0) return false;
-            java.util.List<String> images = new java.util.ArrayList<>();
-            for (String f : files) {
-                String lc = f.toLowerCase(java.util.Locale.ROOT);
-                if (lc.endsWith(".jpg") || lc.endsWith(".jpeg") || lc.endsWith(".png") || lc.endsWith(".webp"))
-                    images.add(f);
-            }
-            if (images.isEmpty()) return false;
-            String pick = images.get(new java.util.Random().nextInt(images.size()));
-            return copyAsset(assetsDir + "/" + pick, dest);
+    /**
+     * Picks a random image from the external wallpapers/ folder and copies it as wallpaper.jpg.
+     * Wallpapers are pushed to the device by theme.sh, not bundled in the APK.
+     */
+    private static boolean pickExternalWallpaper(File dir, File dest) {
+        File wallDir = new File(dir, "wallpapers");
+        File[] files = wallDir.isDirectory() ? wallDir.listFiles() : null;
+        if (files == null) return false;
+        java.util.List<File> images = new java.util.ArrayList<>();
+        for (File f : files) {
+            String lc = f.getName().toLowerCase(java.util.Locale.ROOT);
+            if (f.isFile() && (lc.endsWith(".jpg") || lc.endsWith(".jpeg")
+                    || lc.endsWith(".png") || lc.endsWith(".webp")))
+                images.add(f);
+        }
+        if (images.isEmpty()) return false;
+        File pick = images.get(new java.util.Random().nextInt(images.size()));
+        return copyFile(pick, dest);
+    }
+
+    private static boolean copyFile(File src, File dest) {
+        try (InputStream in = new java.io.FileInputStream(src);
+             OutputStream out = new FileOutputStream(dest)) {
+            byte[] buf = new byte[8192];
+            int n;
+            while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+            return true;
         } catch (IOException e) {
             return false;
         }
     }
 
     /**
-     * Called from MainActivity on each restart: if the active theme has multiple wallpapers,
-     * rotate to a different one.
+     * Called from MainActivity on each Home press: if the external wallpapers/ folder has
+     * multiple images, rotate to a different one.
      */
     static void rotateWallpaper(android.content.Context ctx) {
-        android.content.SharedPreferences prefs = ctx.getSharedPreferences(Config.SETTINGS_NAME,
-                android.content.Context.MODE_PRIVATE);
-        String theme = prefs.getString("active_theme", "default");
-        if ("default".equals(theme)) return;
-        try {
-            String dir = "themes/" + theme + "/wallpapers";
-            String[] files = ctx.getAssets().list(dir);
-            if (files == null || files.length < 2) return; // no rotation needed
-            java.util.List<String> images = new java.util.ArrayList<>();
-            for (String f : files) {
-                String lc = f.toLowerCase(java.util.Locale.ROOT);
-                if (lc.endsWith(".jpg") || lc.endsWith(".jpeg") || lc.endsWith(".png") || lc.endsWith(".webp"))
-                    images.add(f);
-            }
-            if (images.size() < 2) return;
-            String pick = images.get(new java.util.Random().nextInt(images.size()));
-            File dest = new File(Config.dir(ctx), Config.WALLPAPER_NAME);
-            try (InputStream in = ctx.getAssets().open(dir + "/" + pick);
-                 FileOutputStream out = new FileOutputStream(dest)) {
-                byte[] buf = new byte[8192];
-                int n;
-                while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
-            }
-        } catch (IOException ignored) {
+        File dir = Config.dir(ctx);
+        if (dir == null) return;
+        File dest = new File(dir, Config.WALLPAPER_NAME);
+        File wallDir = new File(dir, "wallpapers");
+        File[] files = wallDir.isDirectory() ? wallDir.listFiles() : null;
+        if (files == null) return;
+        java.util.List<File> images = new java.util.ArrayList<>();
+        for (File f : files) {
+            String lc = f.getName().toLowerCase(java.util.Locale.ROOT);
+            if (f.isFile() && (lc.endsWith(".jpg") || lc.endsWith(".jpeg")
+                    || lc.endsWith(".png") || lc.endsWith(".webp")))
+                images.add(f);
         }
+        if (images.size() < 2) return;
+        File pick = images.get(new java.util.Random().nextInt(images.size()));
+        copyFile(pick, dest);
     }
 
     private int findTimeoutIndex(int ms) {
